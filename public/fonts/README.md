@@ -1,0 +1,1 @@
+Inter (rsms/inter) and JetBrains Mono (JetBrains/JetBrainsMono), downloaded from Google Fonts on 2026-09-26. Both are redistributed under their accompanying SIL Open Font License. fonts.css preserves family and weight metadata.

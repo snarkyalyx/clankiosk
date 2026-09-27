@@ -1,0 +1,14 @@
+[Unit]
+Description=Clankiosk (fullscreen dashboard on portrait panel)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/clankiosk
+ExecStart=%h/clankiosk/node_modules/electron/dist/electron %h/clankiosk --no-sandbox --disable-gpu --ozone-platform=x11
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

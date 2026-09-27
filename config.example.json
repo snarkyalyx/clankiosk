@@ -1,0 +1,35 @@
+{
+  "opencodex": {
+    "hubUrl": "http://127.0.0.1:10100",
+    "adminToken": ""
+  },
+  "codexAccounts": [
+    {
+      "id": "codex-1",
+      "name": "Codex",
+      "sublabel": "this machine",
+      "codexHome": null
+    },
+    {
+      "id": "codex-2",
+      "name": "Codex",
+      "sublabel": "second account",
+      "codexHome": null
+    }
+  ],
+  "anthropic": {
+    "enabled": false,
+    "sublabel": ""
+  },
+  "minors": [],
+  "manualWindows": [],
+  "opencode": {
+    "url": ""
+  },
+  "pollSeconds": 300,
+  "t3": {
+    "remotes": [],
+    "sshIdentityFile": "",
+    "readState": {}
+  }
+}

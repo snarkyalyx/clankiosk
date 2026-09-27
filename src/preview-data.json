@@ -1,0 +1,723 @@
+{
+  "updatedAt": 1790589600000,
+  "providers": [
+    {
+      "id": "codex-pro",
+      "name": "Codex",
+      "sublabel": "Pro 20\u00d7",
+      "icon": "codex",
+      "status": "ok",
+      "plan": "Pro",
+      "bars": [
+        {
+          "label": "Weekly",
+          "usedPct": 54,
+          "resetsAt": 1791021600,
+          "consumedTokens": 920000000,
+          "windowMins": 10080
+        }
+      ],
+      "chips": [],
+      "quotaGroup": "codex",
+      "weight": 20,
+      "updatedAt": 1790589600000
+    },
+    {
+      "id": "codex-plus",
+      "name": "Codex",
+      "sublabel": "Plus",
+      "icon": "codex",
+      "status": "ok",
+      "plan": "Plus",
+      "bars": [
+        {
+          "label": "Weekly",
+          "usedPct": 67,
+          "resetsAt": 1791021600,
+          "windowMins": 10080
+        }
+      ],
+      "chips": [],
+      "quotaGroup": "codex",
+      "weight": 1,
+      "updatedAt": 1790589600000
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "sublabel": "Cloud",
+      "icon": "ollama",
+      "status": "ok",
+      "plan": null,
+      "bars": [
+        {
+          "label": "Session",
+          "usedPct": 32,
+          "resetsAt": 1790600400,
+          "windowMins": 300
+        },
+        {
+          "label": "Weekly",
+          "usedPct": 42,
+          "resetsAt": 1790935200,
+          "windowMins": 10080
+        }
+      ],
+      "chips": [],
+      "updatedAt": 1790589600000
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "sublabel": "Claude",
+      "icon": "anthropic",
+      "status": "unconfigured",
+      "plan": null,
+      "bars": [],
+      "chips": [],
+      "updatedAt": 1790589600000
+    },
+    {
+      "id": "xai",
+      "name": "xAI Grok",
+      "sublabel": "",
+      "icon": "xai",
+      "status": "ok",
+      "plan": null,
+      "bars": [
+        {
+          "label": "Weekly",
+          "usedPct": 26,
+          "resetsAt": 1791108000,
+          "windowMins": 10080
+        }
+      ],
+      "chips": [],
+      "updatedAt": 1790589600000
+    }
+  ],
+  "activity": {
+    "hub": {
+      "daily": [
+        {
+          "date": "2026-09-22",
+          "tokens": 38000000
+        },
+        {
+          "date": "2026-09-23",
+          "tokens": 55000000
+        },
+        {
+          "date": "2026-09-24",
+          "tokens": 47000000
+        },
+        {
+          "date": "2026-09-25",
+          "tokens": 72000000
+        },
+        {
+          "date": "2026-09-26",
+          "tokens": 61000000
+        },
+        {
+          "date": "2026-09-27",
+          "tokens": 83000000
+        },
+        {
+          "date": "2026-09-28",
+          "tokens": 49000000
+        }
+      ],
+      "models": [
+        {
+          "provider": "openai",
+          "model": "gpt-6-sol",
+          "week": 113400000,
+          "daily": {
+            "2026-09-22": 10640000,
+            "2026-09-23": 15400000,
+            "2026-09-24": 13160000,
+            "2026-09-25": 20160000,
+            "2026-09-26": 17080000,
+            "2026-09-27": 23240000,
+            "2026-09-28": 13720000
+          }
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-6-luna",
+          "week": 89100000,
+          "daily": {
+            "2026-09-22": 8360000,
+            "2026-09-23": 12100000,
+            "2026-09-24": 10340000,
+            "2026-09-25": 15840000,
+            "2026-09-26": 13420000,
+            "2026-09-27": 18260000,
+            "2026-09-28": 10780000
+          }
+        },
+        {
+          "provider": "ollama-cloud",
+          "model": "deepseek-v4.1-flash",
+          "week": 76950000,
+          "daily": {
+            "2026-09-22": 7220000,
+            "2026-09-23": 10450000,
+            "2026-09-24": 8930000,
+            "2026-09-25": 13680000,
+            "2026-09-26": 11590000,
+            "2026-09-27": 15770000,
+            "2026-09-28": 9310000
+          }
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-6-astra",
+          "week": 52650000,
+          "daily": {
+            "2026-09-22": 4940000,
+            "2026-09-23": 7150000,
+            "2026-09-24": 6110000,
+            "2026-09-25": 9360000,
+            "2026-09-26": 7930000,
+            "2026-09-27": 10790000,
+            "2026-09-28": 6370000
+          }
+        },
+        {
+          "provider": "ollama-cloud",
+          "model": "glm-5.3-flash",
+          "week": 32400000,
+          "daily": {
+            "2026-09-22": 3040000,
+            "2026-09-23": 4400000,
+            "2026-09-24": 3760000,
+            "2026-09-25": 5760000,
+            "2026-09-26": 4880000,
+            "2026-09-27": 6640000,
+            "2026-09-28": 3920000
+          }
+        }
+      ],
+      "tokensLastHour": 28000000,
+      "todayTokens": 49000000,
+      "updatedAt": 1790589600000
+    }
+  },
+  "opencode": {
+    "status": "connected",
+    "url": "http://127.0.0.1:10100",
+    "detail": "Local development hub"
+  },
+  "t3": {
+    "status": "ok",
+    "sessions": [
+      {
+        "id": "demo-session-1",
+        "title": "Review workspace navigation states",
+        "branch": "feat/navigation-states",
+        "project": "Demo Studio",
+        "projectInitials": "DS",
+        "status": "input",
+        "lifecycle": "active",
+        "workingSince": null,
+        "completedAt": 1790589510,
+        "activityAt": 1790589510,
+        "origin": "mac",
+        "model": "gpt-6-luna",
+        "prs": [
+          {
+            "number": 142,
+            "host": "git.example.com",
+            "repository": "DemoOrg/ExampleApp",
+            "url": "https://git.example.com/DemoOrg/ExampleApp/pulls/142",
+            "state": "open",
+            "draft": true,
+            "mergeability": null,
+            "title": "WIP: Workspace navigation states",
+            "updatedAt": 1790586000000,
+            "ci": {
+              "state": "pending",
+              "passed": 4,
+              "total": 6,
+              "failed": 1,
+              "updatedAt": 1790589480000
+            },
+            "review": "pending"
+          }
+        ],
+        "agents": []
+      },
+      {
+        "id": "demo-session-2",
+        "title": "Add compact settings rail",
+        "branch": "feat/compact-settings-rail",
+        "project": "Demo Studio",
+        "projectInitials": "DS",
+        "status": "done",
+        "lifecycle": "active",
+        "workingSince": null,
+        "completedAt": 1790589360,
+        "activityAt": 1790589300,
+        "origin": "fag",
+        "model": "gpt-6-sol",
+        "prs": [
+          {
+            "number": 139,
+            "host": "git.example.com",
+            "repository": "DemoOrg/ExampleApp",
+            "url": "https://git.example.com/DemoOrg/ExampleApp/pulls/139",
+            "state": "open",
+            "draft": false,
+            "mergeability": "mergeable",
+            "title": "Compact settings rail",
+            "updatedAt": 1790586000000,
+            "ci": {
+              "state": "success",
+              "passed": 6,
+              "total": 6,
+              "failed": 0,
+              "updatedAt": 1790589480000
+            },
+            "review": "approved"
+          }
+        ],
+        "agents": []
+      },
+      {
+        "id": "demo-session-3",
+        "title": "Trace usage chart refresh timing",
+        "branch": "fix/chart-refresh",
+        "project": "Telemetry Lab",
+        "projectInitials": "TL",
+        "status": "working",
+        "lifecycle": "active",
+        "workingSince": 1790588770,
+        "completedAt": null,
+        "activityAt": 1790589100,
+        "origin": "mac",
+        "model": "gpt-6-astra",
+        "prs": [
+          {
+            "number": 147,
+            "host": "git.example.com",
+            "repository": "DemoOrg/ExampleApp",
+            "url": "https://git.example.com/DemoOrg/ExampleApp/pulls/147",
+            "state": "open",
+            "draft": false,
+            "mergeability": "mergeable",
+            "title": "Refresh chart from observed samples",
+            "updatedAt": 1790586000000,
+            "ci": {
+              "state": "pending",
+              "passed": 4,
+              "total": 6,
+              "failed": 1,
+              "updatedAt": 1790589480000
+            },
+            "review": "pending"
+          }
+        ],
+        "agents": [
+          {
+            "id": "agent-demo-1",
+            "name": "Check fixtures",
+            "model": "gpt-6-luna",
+            "status": "working",
+            "updatedAt": 1790589600000
+          }
+        ]
+      },
+      {
+        "id": "demo-session-4",
+        "title": "Harden token aggregation",
+        "branch": "fix/token-aggregation",
+        "project": "Telemetry Lab",
+        "projectInitials": "TL",
+        "status": "working",
+        "lifecycle": "active",
+        "workingSince": 1790587880,
+        "completedAt": null,
+        "activityAt": 1790588400,
+        "origin": "fag",
+        "model": "deepseek-v4.1-flash",
+        "prs": [
+          {
+            "number": 145,
+            "host": "git.example.com",
+            "repository": "DemoOrg/ExampleApp",
+            "url": "https://git.example.com/DemoOrg/ExampleApp/pulls/145",
+            "state": "open",
+            "draft": false,
+            "mergeability": "mergeable",
+            "title": "Harden token aggregation",
+            "updatedAt": 1790586000000,
+            "ci": {
+              "state": "success",
+              "passed": 6,
+              "total": 6,
+              "failed": 0,
+              "updatedAt": 1790589480000
+            },
+            "review": "pending"
+          }
+        ],
+        "agents": []
+      },
+      {
+        "id": "demo-session-5",
+        "title": "Document cache attribution",
+        "branch": "docs/cache-attribution",
+        "project": "Usage Core",
+        "projectInitials": "UC",
+        "status": "idle",
+        "lifecycle": "active",
+        "workingSince": null,
+        "completedAt": 1790582400,
+        "activityAt": 1790582700,
+        "origin": "mac",
+        "model": "gpt-6-luna",
+        "prs": [
+          {
+            "number": 133,
+            "host": "git.example.com",
+            "repository": "DemoOrg/ExampleApp",
+            "url": "https://git.example.com/DemoOrg/ExampleApp/pulls/133",
+            "state": "open",
+            "draft": false,
+            "mergeability": "mergeable",
+            "title": "Explain cache accounting",
+            "updatedAt": 1790586000000,
+            "ci": {
+              "state": "success",
+              "passed": 6,
+              "total": 6,
+              "failed": 0,
+              "updatedAt": 1790589480000
+            },
+            "review": "pending"
+          }
+        ],
+        "agents": []
+      },
+      {
+        "id": "demo-session-6",
+        "title": "Reduce query fanout",
+        "branch": "perf/query-fanout",
+        "project": "Usage Core",
+        "projectInitials": "UC",
+        "status": "idle",
+        "lifecycle": "active",
+        "workingSince": null,
+        "completedAt": 1790578800,
+        "activityAt": 1790579000,
+        "origin": "fag",
+        "model": "gpt-6-sol",
+        "prs": [],
+        "agents": []
+      },
+      {
+        "id": "demo-session-7",
+        "title": "Add quota reset coverage",
+        "branch": "test/quota-reset",
+        "project": "Capacity View",
+        "projectInitials": "CV",
+        "status": "approval",
+        "lifecycle": "active",
+        "workingSince": null,
+        "completedAt": 1790589570,
+        "activityAt": 1790589510,
+        "origin": "mac",
+        "model": "gpt-6-astra",
+        "prs": [
+          {
+            "number": 149,
+            "host": "git.example.com",
+            "repository": "DemoOrg/ExampleApp",
+            "url": "https://git.example.com/DemoOrg/ExampleApp/pulls/149",
+            "state": "open",
+            "draft": false,
+            "mergeability": "mergeable",
+            "title": "Quota reset coverage",
+            "updatedAt": 1790586000000,
+            "ci": {
+              "state": "success",
+              "passed": 6,
+              "total": 6,
+              "failed": 0,
+              "updatedAt": 1790589480000
+            },
+            "review": "pending"
+          }
+        ],
+        "agents": []
+      },
+      {
+        "id": "demo-session-8",
+        "title": "Tune cache sample labels",
+        "branch": "design/cache-samples",
+        "project": "Capacity View",
+        "projectInitials": "CV",
+        "status": "idle",
+        "lifecycle": "active",
+        "workingSince": null,
+        "completedAt": 1790575200,
+        "activityAt": 1790575500,
+        "origin": "fag",
+        "model": "gpt-6-luna",
+        "prs": [],
+        "agents": []
+      },
+      {
+        "id": "demo-woke",
+        "title": "Recheck the deployment notes",
+        "branch": "docs/deployment-notes",
+        "project": "Demo Studio",
+        "projectInitials": "DS",
+        "status": "idle",
+        "lifecycle": "woke",
+        "snoozedUntil": 1790589480,
+        "workingSince": null,
+        "completedAt": null,
+        "activityAt": 1790589480,
+        "origin": "mac",
+        "prs": [],
+        "agents": []
+      }
+    ],
+    "stats": {
+      "snoozed": 2,
+      "settled": 12
+    },
+    "updatedAt": 1790589600000,
+    "sources": [
+      {
+        "origin": "mac",
+        "updatedAt": 1790589600000,
+        "stale": false
+      },
+      {
+        "origin": "fag",
+        "updatedAt": 1790589600000,
+        "stale": false
+      }
+    ]
+  },
+  "usage": {
+    "updatedAt": 1790589600000,
+    "pricingBasis": "list-price",
+    "costUsd": 37.42,
+    "cacheHitRate": 0.91,
+    "tokensPerMin": 466666.7,
+    "totalTokens": 405000000,
+    "inputTokens": 1850000000,
+    "outputTokens": 74000000,
+    "reasoningTokens": 26000000,
+    "models": [
+      {
+        "provider": "openai",
+        "model": "gpt-6-sol",
+        "tokens": 113400000,
+        "inputTokens": 108864000,
+        "outputTokens": 4536000,
+        "costUsd": 20.412,
+        "cacheHitRate": 0.89,
+        "requests": 420
+      },
+      {
+        "provider": "openai",
+        "model": "gpt-6-luna",
+        "tokens": 89100000,
+        "inputTokens": 85536000,
+        "outputTokens": 3564000,
+        "costUsd": 16.037999999999997,
+        "cacheHitRate": 0.89,
+        "requests": 420
+      },
+      {
+        "provider": "ollama-cloud",
+        "model": "deepseek-v4.1-flash",
+        "tokens": 76950000,
+        "inputTokens": 73872000,
+        "outputTokens": 3078000,
+        "costUsd": 13.851,
+        "cacheHitRate": 0.89,
+        "requests": 420
+      },
+      {
+        "provider": "openai",
+        "model": "gpt-6-astra",
+        "tokens": 52650000,
+        "inputTokens": 50544000,
+        "outputTokens": 2106000,
+        "costUsd": 9.476999999999999,
+        "cacheHitRate": 0.89,
+        "requests": 420
+      },
+      {
+        "provider": "ollama-cloud",
+        "model": "glm-5.3-flash",
+        "tokens": 32400000,
+        "inputTokens": 31104000,
+        "outputTokens": 1296000,
+        "costUsd": 5.832,
+        "cacheHitRate": 0.89,
+        "requests": 420
+      }
+    ],
+    "modelsDaily": [
+      {
+        "provider": "openai",
+        "model": "gpt-6-sol",
+        "daily": {
+          "2026-09-22": 10640000,
+          "2026-09-23": 15400000,
+          "2026-09-24": 13160000,
+          "2026-09-25": 20160000,
+          "2026-09-26": 17080000,
+          "2026-09-27": 23240000,
+          "2026-09-28": 13720000
+        }
+      },
+      {
+        "provider": "openai",
+        "model": "gpt-6-luna",
+        "daily": {
+          "2026-09-22": 8360000,
+          "2026-09-23": 12100000,
+          "2026-09-24": 10340000,
+          "2026-09-25": 15840000,
+          "2026-09-26": 13420000,
+          "2026-09-27": 18260000,
+          "2026-09-28": 10780000
+        }
+      },
+      {
+        "provider": "ollama-cloud",
+        "model": "deepseek-v4.1-flash",
+        "daily": {
+          "2026-09-22": 7220000,
+          "2026-09-23": 10450000,
+          "2026-09-24": 8930000,
+          "2026-09-25": 13680000,
+          "2026-09-26": 11590000,
+          "2026-09-27": 15770000,
+          "2026-09-28": 9310000
+        }
+      },
+      {
+        "provider": "openai",
+        "model": "gpt-6-astra",
+        "daily": {
+          "2026-09-22": 4940000,
+          "2026-09-23": 7150000,
+          "2026-09-24": 6110000,
+          "2026-09-25": 9360000,
+          "2026-09-26": 7930000,
+          "2026-09-27": 10790000,
+          "2026-09-28": 6370000
+        }
+      },
+      {
+        "provider": "ollama-cloud",
+        "model": "glm-5.3-flash",
+        "daily": {
+          "2026-09-22": 3040000,
+          "2026-09-23": 4400000,
+          "2026-09-24": 3760000,
+          "2026-09-25": 5760000,
+          "2026-09-26": 4880000,
+          "2026-09-27": 6640000,
+          "2026-09-28": 3920000
+        }
+      }
+    ],
+    "daily": [
+      {
+        "date": "2026-09-22",
+        "totalTokens": 38000000,
+        "costUsd": 5.35,
+        "inputTokens": 36480000,
+        "outputTokens": 1520000,
+        "cachedInputTokens": 27360000,
+        "cacheObservedInputTokens": 30400000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      },
+      {
+        "date": "2026-09-23",
+        "totalTokens": 55000000,
+        "costUsd": 5.35,
+        "inputTokens": 52800000,
+        "outputTokens": 2200000,
+        "cachedInputTokens": 39600000,
+        "cacheObservedInputTokens": 44000000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      },
+      {
+        "date": "2026-09-24",
+        "totalTokens": 47000000,
+        "costUsd": 5.35,
+        "inputTokens": 45120000,
+        "outputTokens": 1880000,
+        "cachedInputTokens": 33840000,
+        "cacheObservedInputTokens": 37600000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      },
+      {
+        "date": "2026-09-25",
+        "totalTokens": 72000000,
+        "costUsd": 5.35,
+        "inputTokens": 69120000,
+        "outputTokens": 2880000,
+        "cachedInputTokens": 51840000,
+        "cacheObservedInputTokens": 57600000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      },
+      {
+        "date": "2026-09-26",
+        "totalTokens": 61000000,
+        "costUsd": 5.35,
+        "inputTokens": 58560000,
+        "outputTokens": 2440000,
+        "cachedInputTokens": 43920000,
+        "cacheObservedInputTokens": 48800000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      },
+      {
+        "date": "2026-09-27",
+        "totalTokens": 83000000,
+        "costUsd": 5.35,
+        "inputTokens": 79680000,
+        "outputTokens": 3320000,
+        "cachedInputTokens": 59760000,
+        "cacheObservedInputTokens": 66400000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      },
+      {
+        "date": "2026-09-28",
+        "totalTokens": 49000000,
+        "costUsd": 5.35,
+        "inputTokens": 47040000,
+        "outputTokens": 1960000,
+        "cachedInputTokens": 35280000,
+        "cacheObservedInputTokens": 39200000,
+        "pricedRequests": 1200,
+        "unpricedRequests": 0,
+        "unmeteredRequests": 0
+      }
+    ]
+  }
+}
