@@ -1,57 +1,60 @@
-const { app, BrowserWindow, ipcMain, screen, powerSaveBlocker } = require("electron")
+const { app, BrowserWindow, ipcMain, screen, powerSaveBlocker, Menu, dialog } = require("electron")
 const { spawn } = require("node:child_process")
 const fs = require("node:fs")
 const path = require("node:path")
 const os = require("node:os")
 const sessionData = require("./session-data.cjs")
+const claudeUsage = require("./claude-usage.cjs")
+const claudeQuota = require("./claude-quota.cjs")
 const { readVisits } = require("./t3-read-state.cjs")
 const quotaHistory = new Map()
 
-const CONFIG_DIR = path.join(os.homedir(), ".config", "ai-kiosk")
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json")
-const CODEX_BIN_CANDIDATES = [
-  path.join(os.homedir(), ".local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"),
-  "codex",
-]
-
-function loadConfig() {
-  const defaults = {
-    opencodex: { hubUrl: "http://127.0.0.1:10100", adminToken: "" },
-    codexAccounts: [
-      { id: "codex-1", name: "Codex", sublabel: "", codexHome: null },
-      { id: "codex-2", name: "Codex", sublabel: "second account", codexHome: null },
-    ],
-    anthropic: { enabled: false, sublabel: "" },
-    minors: [],
-    opencode: { url: "" },
-    pollSeconds: 300,
-  }
-  try {
-    return { ...defaults, ...JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) }
-  } catch {
-    try { fs.mkdirSync(CONFIG_DIR, { recursive: true }) } catch {}
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaults, null, 2))
-    return defaults
-  }
-}
-
-let config = loadConfig()
+const settings = require("./config.cjs")
+process.env.PATH = settings.toolPath()
+const { CodexUsage } = require("./codex-usage.cjs")
+const loadedConfig = settings.loadConfig()
+let config = loadedConfig.config
+let quitting = false
+const configPaths = settings.paths()
+const headless = process.env.CLANKIOSK_HEADLESS === '1'
+if (headless) { app.disableHardwareAcceleration(); if (process.platform === 'linux') app.commandLine.appendSwitch('ozone-platform', 'headless') }
+fs.mkdirSync(path.join(configPaths.dataDir, 'electron'), { recursive: true, mode: 0o700 })
+app.setName('Clankiosk')
+app.setPath('userData', path.join(configPaths.dataDir, 'electron'))
+if (process.argv.includes('--kiosk')) config.window.mode = 'kiosk'
+if (process.argv.includes('--desktop')) config.window.mode = 'desktop'
+let needsSetup = loadedConfig.setupRequired || process.argv.includes('--setup')
 
 // ---------- state ----------
 const state = {
   updatedAt: Date.now(),
+  setupRequired: needsSetup,
+  runtime: { mode: config.window.mode, t3Enabled: config.t3.enabled },
   providers: [],
   activity: {},
   opencode: { status: "unconfigured" },
   t3: { status: "unavailable", sessions: [] },
 }
-
-function codexBinary() {
-  for (const c of CODEX_BIN_CANDIDATES) {
-    try { fs.accessSync(c, fs.constants.X_OK); return c } catch {}
-  }
-  return null
+let hubUsage = null
+let localClaudeUsage = null
+let localCodexUsage = null
+const codexUsageReader = new CodexUsage()
+const isClaudeProvider = provider => ["anthropic", "claude"].includes(String(provider || "").toLowerCase())
+const excludeHubModel = provider => isClaudeProvider(provider) ? config.usage.claude !== 'hub' : ['openai','codex'].includes(String(provider).toLowerCase()) ? config.usage.codex !== 'hub' : false
+function rebuildUsage() {
+  const primary = claudeUsage.mergeUsage(hubUsage, localCodexUsage)
+  state.usage = claudeUsage.mergeUsage(primary, localClaudeUsage)
 }
+async function fetchLocalCodexUsage() {
+  if (config.usage.codex !== 'local' || !config.codex.enabled) return
+  try {
+    localCodexUsage = await codexUsageReader.read(config.codex.home)
+    state.activity.localCodex = { todayTokens: localCodexUsage.todayTokens, tokensLastHour: localCodexUsage.tokensLastHour, updatedAt: localCodexUsage.updatedAt }
+  } catch { if (localCodexUsage) localCodexUsage.partial = true }
+  rebuildUsage()
+}
+
+function codexBinary() { return settings.executable(config.codex.binary || 'codex') }
 
 // ---------- Codex app-server MCP client ----------
 class CodexAccount {
@@ -67,6 +70,7 @@ class CodexAccount {
   }
 
   start() {
+    if (quitting) return
     const bin = codexBinary()
     if (!bin) { this.data = { status: "error", detail: "codex binary not found" }; return }
     const env = { ...process.env }
@@ -75,10 +79,12 @@ class CodexAccount {
     this.proc = spawn(bin, ["app-server", "--listen", "stdio://"], { env, stdio: ["pipe", "pipe", "pipe"] })
     this.proc.stdout.setEncoding("utf8")
     this.proc.stderr.setEncoding("utf8")
+    this.proc.on('error', () => { this.data = { status:'error', detail:'Could not start Codex app-server' }; pushToRenderer() })
     this.proc.stderr.on("data", (d) => console.error(`[ai-kiosk] codex ${this.account.id} stderr:`, String(d).slice(0, 200)))
     this.proc.stdout.on("data", (chunk) => this.#onData(chunk))
     this.proc.on("exit", () => {
       this.proc = null
+      if (quitting) return
       if (this.data?.status !== "unconfigured")
         this.data = { ...this.data, status: "error", detail: "app-server exited; retrying" }
       setTimeout(() => this.start(), this.backoff)
@@ -199,7 +205,7 @@ function codexToCard(account, data) {
 
 // ---------- OpenCodex hub (Mac) provider quotas ----------
 const PROVIDER_META = {
-  openai:   { id: "codex-mac", name: "Codex", icon: "codex", sublabel: "Mac · OpenCodex pool" },
+  openai:   { id: "codex-pool", name: "Codex", icon: "codex", sublabel: "OpenCodex pool" },
   ollama:   { id: "ollama", name: "Ollama", icon: "ollama", sublabel: "Cloud" },
   "ollama-cloud": { id: "ollama", name: "Ollama", icon: "ollama", sublabel: "Cloud" },
   anthropic: { id: "anthropic", name: "Anthropic", icon: "anthropic", sublabel: "Claude" },
@@ -244,7 +250,8 @@ async function fetchHubTimeline() {
     if (!t.ok) return
     const tl = await t.json()
     const perDay = new Map()
-    const models = (tl.series || []).map((sr) => {
+    const series = (tl.series || []).filter(sr => !(excludeHubModel(sr.provider)))
+    const models = series.map((sr) => {
       const perDay2 = {}
       ;(sr.points || []).forEach((v, i) => {
         if (!v) return
@@ -260,7 +267,7 @@ async function fetchHubTimeline() {
       .map(([date, tokens]) => ({ date, tokens }))
     const cutoff = Date.now() - 3600 * 1000
     let tokensLastHour = 0
-    for (const sr of tl.series || []) {
+    for (const sr of series) {
       (sr.points || []).forEach((v, i) => {
         if (!v) return
         const ts = (tl.start + i * tl.bucketSeconds) * 1000
@@ -289,7 +296,18 @@ async function fetchHubUsage() {
     })
     if (!r.ok) return
     const body = await r.json()
-    const days = body.days || []
+    const rawDays = body.days || []
+    const hadClaudeRows = rawDays.some(d => (d.models || []).some(m => excludeHubModel(m.provider)))
+    const days = hadClaudeRows ? rawDays.map(d => {
+      const models = (d.models || []).filter(m => !excludeHubModel(m.provider))
+      const sum = key => models.reduce((n, m) => n + (m[key] || 0), 0)
+      return { date:d.date,models,totalTokens:sum('totalTokens'),inputTokens:sum('inputTokens'),
+        outputTokens:sum('outputTokens'),cachedInputTokens:sum('cacheReadInputTokens'),
+        cacheObservedInputTokens:sum('cacheObservedInputTokens'),
+        estimatedCostUsd:sum('estimatedCostUsd'),
+        unpricedRequests:sum('unpricedRequests'),pricedRequests:sum('pricedRequests'),
+        unmeteredRequests:sum('unmeteredRequests') }
+    }) : rawDays
     const modelMap = new Map()
     const modelsDaily = new Map()
     for (const d of days) {
@@ -322,8 +340,16 @@ async function fetchHubUsage() {
       cacheHitRate: m.cacheObserved > 0 ? m.cacheRead / m.cacheObserved : null,
       requests: m.requests,
     })).sort((a, b) => b.tokens - a.tokens)
-    const s = body.summary || {}
-    state.usage = {
+    const s = hadClaudeRows ? {
+      estimatedCostUsd: days.reduce((n,d)=>n+(d.estimatedCostUsd||0),0),
+      totalTokens: days.reduce((n,d)=>n+(d.totalTokens||0),0),
+      inputTokens: days.reduce((n,d)=>n+(d.inputTokens||0),0),
+      outputTokens: days.reduce((n,d)=>n+(d.outputTokens||0),0),
+      cachedInputTokens: days.reduce((n,d)=>n+(d.cachedInputTokens||0),0),
+      cacheObservedInputTokens: days.reduce((n,d)=>n+(d.cacheObservedInputTokens||0),0),
+      reasoningOutputTokens: 0,
+    } : body.summary || {}
+    hubUsage = {
       updatedAt: Date.now(),
       pricingBasis: "configured",
       costUsd: s.estimatedCostUsd || 0,
@@ -340,18 +366,42 @@ async function fetchHubUsage() {
       }),
       daily: days.map(sessionData.normalizeUsageDay),
     }
+    rebuildUsage()
   } catch {}
+}
+
+async function fetchClaudeUsage() {
+  if (!config.claude?.enabled || config.usage.claude !== 'local') return
+  const database = config.claude.database || path.join(configPaths.dataDir, "claude-usage.sqlite")
+  try {
+    localClaudeUsage = await claudeUsage.readClaudeUsage(database, config.claude.expectedSources || [])
+  } catch (e) {
+    console.error("[ai-kiosk] Claude usage read failed:", String(e.message || e).slice(0, 120))
+    if (localClaudeUsage) localClaudeUsage = { ...localClaudeUsage, partial:true }
+  }
+  if (!localClaudeUsage) localClaudeUsage = { daily:[], models:[], modelsDaily:[], todayTokens:0, tokensLastHour:0, partial:true }
+  state.activity.claude = { todayTokens:localClaudeUsage.todayTokens, tokensLastHour:localClaudeUsage.tokensLastHour,
+    updatedAt:localClaudeUsage.updatedAt || 0, partial:localClaudeUsage.partial }
+  rebuildUsage()
+}
+
+async function fetchClaudeQuota() {
+  if (!config.claude?.enabled || !config.claude.quota) return
+  try {
+    const card = await claudeQuota.readClaudeQuota()
+    state.providers = state.providers.filter(p => p.id !== 'anthropic')
+    state.providers.push(card)
+  } catch (error) {
+    const card = state.providers.find(p => p.id === 'anthropic')
+    if (card?._claudeQuota) card.status = 'error'
+    console.error('[ai-kiosk] Claude quota unavailable:', String(error.message || error).slice(0, 100))
+  }
 }
 
 async function fetchOpencodeHub() {
   const hub = config.opencodex || {}
   const base = (hub.hubUrl || "").replace(/\/$/, "")
   if (!base || !hub.adminToken) {
-    state.providers = state.providers.filter((p) => !p.id.startsWith("ocx-"))
-    state.providers.push({
-      id: "ocx-hub", name: "OpenCodex Hub", icon: "codex", status: "unconfigured",
-      bars: [], statusDetail: "Paste the Mac hub admin token in config (~/.opencodex/admin-api-token on the Mac)",
-    })
     return
   }
   try {
@@ -368,8 +418,7 @@ async function fetchOpencodeHub() {
     for (const rep of reports) {
       const q = rep.quota || {}
       const meta = PROVIDER_META[rep.provider] || { id: rep.provider, name: rep.label || rep.provider, icon: "generic", sublabel: "via OpenCodex" }
-      const id = "ocx-" + meta.id
-      ocxIds.add(id)
+      ocxIds.add(meta.id)
       const bars = []
       if (typeof q.fiveHourPercent === "number")
         bars.push({ label: "Session", usedPct: q.fiveHourPercent, resetsAt: toSeconds(q.fiveHourResetAt), windowMins: 300 })
@@ -394,6 +443,7 @@ async function fetchOpencodeHub() {
         name: meta.name,
         sublabel: meta.sublabel,
         icon: meta.icon,
+        ...(rep.provider === 'openai' ? { quotaGroup:'codex' } : {}),
         status: "ok",
         bars: bars.slice(0, 3),
         chips: [],
@@ -404,7 +454,7 @@ async function fetchOpencodeHub() {
       if (idx >= 0) state.providers[idx] = card
       else state.providers.push(card)
     }
-    state.providers = state.providers.filter((p) => !(p.id.startsWith("ocx-") && !ocxIds.has(p.id) && p._hub))
+    state.providers = state.providers.filter(p => !p._hub || ocxIds.has(p.id))
     state.providers = state.providers.filter((p) => p.id !== "ocx-hub")
     state.opencode = { status: "connected", url: base, detail: "OpenCodex hub" }
     // config-driven manual windows for quotas the hub cannot see
@@ -424,7 +474,7 @@ async function fetchOpencodeHub() {
         card.bars.push({ label: w.label, usedPct: w.usedPct ?? null, resetsAt: resetAt })
       }
     }
-    // Codex pool accounts on the Mac (e.g. snarkyalyx Plus)
+    // Additional Codex accounts reported by the hub
     try {
       const cq = await fetch(base + "/api/codex-auth/quota", {
         headers: { "x-opencodex-api-key": hub.adminToken },
@@ -497,7 +547,7 @@ async function probeOpencode() {
 }
 
 // ---------- t3 sessions (local state DB, read-only) ----------
-const T3_DB = path.join(os.homedir(), ".t3", "userdata", "state.sqlite")
+const T3_DB = config.t3.database
 // ---------- forge pull requests ----------
 // T3 owns PR associations; the forge only refreshes those exact records.
 const forge = { at: 0, reposAt: 0, repos: [], cred: new Map(), tried: new Map(), byNumber: new Map(), byHead: new Map(), error: null }
@@ -552,7 +602,7 @@ function projectInitials(name) {
 
 function t3Query(sql = T3_ROWS_SQL, database = T3_DB) {
   return new Promise((resolve) => {
-    const child = spawn("sqlite3", ["-json", `file:${database}?mode=ro`, sql], { stdio: ["ignore", "pipe", "pipe"] })
+    const child = spawn(settings.executable('sqlite3') || 'sqlite3', ["-json", `file:${database}?mode=ro`, sql], { stdio: ["ignore", "pipe", "pipe"] })
     let out = "", err = ""
     const timer = setTimeout(() => child.kill("SIGKILL"), 8000)
     child.stdout.setEncoding("utf8")
@@ -570,15 +620,17 @@ function t3Query(sql = T3_ROWS_SQL, database = T3_DB) {
 }
 
 async function refreshT3() {
-  if (refreshingT3) return
+  if (!config.t3.enabled || refreshingT3) return
   refreshingT3 = true
   try {
-    const remotes = config.t3?.remotes ?? []
+    const remotes = config.t3.remotes
     const jobs = [t3Load(localHostName(), t3Query, sql => t3Query(sql, path.join(os.homedir(), '.codex/state_5.sqlite')))]
     for (const rem of remotes) if (rem?.host) jobs.push(t3Load(rem.label, sql => t3RemoteQuery(rem.host, sql), sql => t3RemoteQuery(rem.host, sql, '.codex/state_5.sqlite')))
-    const readStateConfig = config.t3?.readState ?? {}
+    const macRemote = remotes.find(rem => rem?.host && rem.label?.toLowerCase() === "mac")
+    const focusJob = process.platform === "darwin" ? localMacFrontmost() : macRemote ? t3RemoteFrontmostBundleId(macRemote.host) : Promise.resolve(null)
+    const readStateConfig = config.t3.readState
     const visitsJob = readVisits({ ...readStateConfig, identityFile: readStateConfig.identityFile ?? config.t3?.sshIdentityFile }).then(visits => ({ visits }), () => ({ visits: {}, error: true }))
-    const [results, readState] = await Promise.all([Promise.allSettled(jobs), visitsJob])
+    const [results, readState, frontmostBundleId] = await Promise.all([Promise.allSettled(jobs), visitsJob, focusJob])
     const sessions = [], errors = [], sources = []
     let snoozed = 0, settledCount = 0, successes = 0
     if (readState.error) errors.push("T3 read state unavailable")
@@ -604,6 +656,7 @@ async function refreshT3() {
     }
     state.t3 = { status: successes > 0 ? "ok" : "unavailable", detail: errors.join("; ") || undefined,
       sessions, stats: { snoozed, settled: settledCount }, sources,
+      macT3Focused: frontmostBundleId == null ? undefined : frontmostBundleId === "com.t3tools.t3code",
       updatedAt: successes > 0 ? Date.now() : state.t3.updatedAt }
     attachForgePrs(sessions)
   } finally { refreshingT3 = false }
@@ -614,7 +667,8 @@ function attachForgePrs(sessions) {
   for (const s of sessions) s.prs = (s.prs || []).map(pr => ({ ...pr, ...(forge.byNumber.get(sessionData.prIdentity(pr)) || {}) }))
 }
 
-// The repositories to ask about come from PR rows in local and configured T3 sources.
+// The repositories to ask about, taken from the pull request rows t3 already
+// has on record: the same repository serves both this machine and the mac.
 async function forgeRepositories() {
   const rows = []
   const REPOS_SQL = `SELECT DISTINCT pr.repository,pr.url,p.title AS project FROM projection_thread_pull_requests pr JOIN projection_threads t ON t.thread_id=pr.thread_id JOIN projection_projects p ON p.project_id=t.project_id WHERE pr.url IS NOT NULL AND pr.url <> ''`
@@ -624,7 +678,7 @@ async function forgeRepositories() {
   }
   await Promise.allSettled([
     grab((sql) => t3Query(sql)),
-    ...((config.t3?.remotes ?? []).filter((r) => r?.host)
+    ...((config.t3.remotes).filter((r) => r?.host)
       .map((r) => grab((sql) => t3RemoteQuery(r.host, sql)))),
   ])
   const repos = new Map()
@@ -642,7 +696,7 @@ async function forgeRepositories() {
 
 let refreshingForge = false
 async function forgeRefresh() {
-  if (refreshingForge) return
+  if (!config.t3.enabled || !config.forge.enabled || refreshingForge) return
   refreshingForge = true
   try {
     if (Date.now() - forge.reposAt > 900000) {
@@ -691,7 +745,7 @@ async function forgeRefresh() {
 }
 
 function writeForgeNote(m) {
-  try { fs.appendFileSync("/tmp/kiosk-forge.log", new Date().toISOString() + " " + m + "\n") } catch {}
+  try { fs.appendFileSync(path.join(configPaths.dataDir, 'forge.log'), new Date().toISOString() + " " + m + "\n") } catch {}
 }
 
 // Read projections and provider-assigned subagent names; missing names are optional.
@@ -733,17 +787,44 @@ function t3RemoteQuery(host, sql = T3_ROWS_SQL, relativeDb = '.t3/userdata/state
   })
 }
 
-function localHostName() {
-  return (os.hostname() || "local").split(".")[0]
+function t3RemoteFrontmostBundleId(host) {
+  return new Promise((resolve) => {
+    const args = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=accept-new"]
+    if (config.t3?.sshIdentityFile) args.push("-i", config.t3.sshIdentityFile, "-o", "IdentitiesOnly=yes")
+    const remoteCmd = 'asn=$(lsappinfo front 2>/dev/null) && lsappinfo info -only bundleID "$asn" 2>/dev/null'
+    const child = spawn("ssh", [...args, host, remoteCmd], { stdio: ["ignore", "pipe", "ignore"] })
+    let out = ""
+    const timer = setTimeout(() => child.kill("SIGKILL"), 5000)
+    child.stdout.setEncoding("utf8")
+    child.stdout.on("data", d => { out += d })
+    child.on("error", () => { clearTimeout(timer); resolve(null) })
+    child.on("close", code => {
+      clearTimeout(timer)
+      const match = code === 0 && out.match(/bundleID="([^"]+)"/)
+      resolve(match ? match[1] : null)
+    })
+  })
+}
+
+function localHostName() { return config.t3.label || (process.platform === 'darwin' ? 'mac' : 'linux') }
+function localMacFrontmost() {
+  return new Promise(resolve => {
+    const { execFile } = require('node:child_process')
+    execFile('/usr/bin/lsappinfo', ['front'], { timeout: 2000 }, (error, asn) => {
+      if (error) return resolve(null)
+      execFile('/usr/bin/lsappinfo', ['info','-only','bundleID',asn.trim()], { timeout: 2000 }, (error, output) => resolve(error ? null : output.match(/bundleID="([^"]+)"/)?.[1] || null))
+    })
+  })
 }
 
 // ---------- orchestration ----------
 const codexAccounts = []
 
 function buildSnapshot() {
-  state.providers = state.providers.filter((p) => !p.id.startsWith("codex"))
+  const accountIds = new Set(config.codexAccounts.map(account => account.id))
+  state.providers = state.providers.filter(p => !accountIds.has(p.id) && (!p.id.startsWith('codex') || p._hub))
   const cards = []
-  for (const acc of config.codexAccounts || []) {
+  for (const acc of config.codex.enabled ? config.codexAccounts : []) {
     const inst = codexAccounts.find((c) => c.account.id === acc.id)
     if (acc.id === "codex-2" && state.hubCodex2) {
       cards.push(state.hubCodex2)
@@ -779,14 +860,14 @@ function collectOnce() {
 }
 
 function startData() {
-  for (const acc of config.codexAccounts || []) {
+  for (const acc of config.codex.enabled ? config.codexAccounts : []) {
     if (!acc.codexHome) continue // needs explicit CODEX_HOME (except default account below)
     const inst = new CodexAccount(acc)
     codexAccounts.push(inst)
     inst.start()
   }
   // The first account uses the default ~/.codex
-  const first = config.codexAccounts?.[0]
+  const first = config.codex.enabled && config.codexAccounts?.[0]
   if (first && !first.codexHome) {
     const inst = new CodexAccount({ ...first, codexHome: null })
     codexAccounts.push(inst)
@@ -821,11 +902,11 @@ function startData() {
   // instead of extrapolating a rate that was last measured 45s ago.
   // Main-process stdout stops reaching the journal a few seconds after start
   // (the journald socket goes quiet), so failures here go to a file instead.
-  const noteLaneFailure = (m) => { try { fs.appendFileSync("/tmp/kiosk-token-lane.log", new Date().toISOString() + " " + m + "\n") } catch {} }
+  const noteLaneFailure = (m) => { try { fs.appendFileSync(path.join(configPaths.dataDir, 'token-lane.log'), new Date().toISOString() + " " + m + "\n") } catch {} }
   const tokenLane = async () => {
     try {
       await fetchHubTimeline()
-      if (state.usage) state.usage.tokensPerMin = (state.activity?.hub?.tokensLastHour || 0) / 60
+      if (state.usage) state.usage.tokensPerMin = ((state.activity?.hub?.tokensLastHour || 0) + (state.activity?.claude?.tokensLastHour || 0) + (state.activity?.localCodex?.tokensLastHour || 0)) / 60
       pushTick()
     } catch (e) {
       noteLaneFailure(String((e && e.message) || e))
@@ -834,13 +915,52 @@ function startData() {
   tokenLane()
   setInterval(tokenLane, 1000)
   // The heavier aggregate (cost, cache, per-model detail, ~54 KB) stays slow.
-  const usageLane = async () => { await fetchHubUsage(); buildSnapshot(); pushToRenderer() }
+  const usageLane = async () => { await Promise.all([fetchHubUsage(), fetchLocalCodexUsage()]); buildSnapshot(); pushToRenderer() }
   usageLane()
   setInterval(usageLane, 60000)
+  let codexReading = false
+  setInterval(async () => { if (codexReading) return; codexReading = true; try { await fetchLocalCodexUsage(); pushTick(); pushToRenderer() } finally { codexReading = false } }, 10000)
+  if (config.claude?.enabled) {
+    const claudeLane = async () => { await fetchClaudeUsage(); pushTick(); pushToRenderer() }
+    claudeLane()
+    setInterval(claudeLane, 5000)
+    const claudeQuotaLane = async () => { await fetchClaudeQuota(); buildSnapshot(); pushToRenderer() }
+    claudeQuotaLane()
+    setInterval(claudeQuotaLane, 120000)
+  }
   setInterval(() => { for (const inst of codexAccounts) if (inst.data?.status === "ok") { /* keep-alive */ } }, 60000)
 }
 
 let win = null
+let cursorGuard = null
+
+function startCursorGuard() {
+  if (config.window.mode !== "kiosk" || process.platform !== "linux" || !win || win.isDestroyed() || cursorGuard) return
+  let windowId
+  try {
+    const handle = win.getNativeWindowHandle()
+    windowId = handle.length >= 8 ? handle.readBigUInt64LE(0) & 0xffffffffn : BigInt(handle.readUInt32LE(0))
+  } catch (e) { console.error("[ai-kiosk] native cursor handle unavailable:", String(e.message || e)); return }
+  const guard = spawn(settings.executable('python3') || 'python3', [app.isPackaged ? path.join(process.resourcesPath, 'collectors/cursor-guard.py') : path.join(__dirname, 'cursor-guard.py'), `0x${windowId.toString(16)}`], { stdio: ["ignore", "ignore", "pipe"] })
+  cursorGuard = guard
+  let error = ""
+  guard.stderr.setEncoding("utf8")
+  guard.stderr.on("data", chunk => { error += chunk })
+  guard.on("error", e => {
+    if (cursorGuard === guard) cursorGuard = null
+    console.error("[ai-kiosk] native cursor guard failed:", String(e.message || e))
+  })
+  guard.on("exit", code => {
+    if (cursorGuard === guard) cursorGuard = null
+    if (code && error.trim()) console.error("[ai-kiosk] native cursor guard exited:", error.trim())
+  })
+}
+
+function stopCursorGuard() {
+  const guard = cursorGuard
+  cursorGuard = null
+  if (guard && !guard.killed) guard.kill("SIGTERM")
+}
 // Dev-only probe: AI_KIOSK_PROBE=/path/log.txt has the renderer report, from
 // inside the page, what the live tick says next to the figure the wheels are
 // actually showing, so the counter can be checked against the hub directly.
@@ -910,29 +1030,23 @@ function maybeAutoShot() {
   setTimeout(loop, delay)
 }
 
+function targetDisplay() {
+  const displays = screen.getAllDisplays(), selection = config.window.display
+  if (selection === 'primary') return screen.getPrimaryDisplay()
+  if (selection === 'portrait') return displays.find(d => d.size.height > d.size.width)
+  return displays.find(d => String(d.id) === String(selection))
+}
 function placeOnKioskDisplay() {
-  if (!win || win.isDestroyed()) return
-  const displays = screen.getAllDisplays()
-  const portrait = displays.find((d) => d.size.height > d.size.width)
-  if (!portrait) {
-    // Hard rule: the kiosk is never allowed on a landscape display (the main
-    // screen). If the portrait panel is gone, hide instead of moving.
-    if (win.isVisible()) win.hide()
-    return
-  }
-  const b = portrait.bounds
-  const cur = win.getBounds()
-  if (cur.x !== b.x || cur.y !== b.y || cur.width !== b.width || cur.height !== b.height) {
-    console.log("[ai-kiosk] repositioning window to display at (" + b.x + "," + b.y + ")")
-    win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height })
-  }
+  if (config.window.mode !== 'kiosk' || needsSetup) return
+  if (!win || win.isDestroyed()) { createWindow(); return }
+  const target = targetDisplay()
+  if (!target) { win.hide(); stopCursorGuard(); return }
+  const b = target.bounds, old = win.getBounds()
+  if (Object.keys(b).some(k => b[k] !== old[k])) win.setBounds(b)
   if (!win.isFullScreen()) win.setFullScreen(true)
   if (!win.isVisible()) win.showInactive()
-  // Mutter can drop the topmost request when it rearranges monitors even if
-  // the window's reported bounds already match the portrait display.
-  win.setAlwaysOnTop(false)
-  win.setAlwaysOnTop(true, "floating")
-  setTimeout(() => { if (win && !win.isDestroyed()) win.blur() }, 250)
+  startCursorGuard()
+  win.setAlwaysOnTop(!!config.window.alwaysOnTop, 'floating')
 }
 
 let placeTimer = null
@@ -959,11 +1073,14 @@ function checkDisplayLayout() {
 function pushTick() {
   if (!win || win.isDestroyed()) return
   const hub = state.activity?.hub || {}
+  const claude = state.activity?.claude || {}
+  const today = claudeUsage.todayTokens(state.usage, { todayTokens: (hub.todayTokens || 0) + (state.activity.localCodex?.todayTokens || 0) }, claude)
+  const lastHour = (hub.tokensLastHour || 0) + (claude.tokensLastHour || 0) + (state.activity.localCodex?.tokensLastHour || 0)
   win.webContents.send("kiosk:tick", {
-    tokensToday: hub.todayTokens || 0,
-    tokensLastHour: hub.tokensLastHour || 0,
-    tokensPerMin: (hub.tokensLastHour || 0) / 60,
-    updatedAt: hub.updatedAt || 0,
+    tokensToday: today,
+    tokensLastHour: lastHour,
+    tokensPerMin: lastHour / 60,
+    updatedAt: Math.max(hub.updatedAt || 0, claude.updatedAt || 0, state.activity.localCodex?.updatedAt || 0),
   })
 }
 
@@ -983,79 +1100,108 @@ function maybeDumpState() {
   try { fs.writeFileSync(file, JSON.stringify(state, null, 1)) } catch (e) { console.error("[ai-kiosk] dump failed:", String(e.message || e)) }
 }
 
-function createWindow(retries = 0) {
-  console.log("[ai-kiosk] enumerating displays")
-  const displays = screen.getAllDisplays()
-  console.log("[ai-kiosk] displays:", JSON.stringify(displays.map(d => ({...d.bounds, workArea: d.workArea}))))
-  const target = displays.find((d) => d.size.height > d.size.width)
-  if (!target) {
-    // Hard rule: only ever create the window on the portrait panel. Never
-    // fall back to displays[0] — that is the user's main screen.
-    if (retries < 30) {
-      console.log("[ai-kiosk] no portrait display yet; retrying in 2s")
-      setTimeout(() => { try { createWindow(retries + 1) } catch (e) { console.error("[ai-kiosk] retry failed:", e) } }, 2000)
-      return
-    }
-    console.error("[ai-kiosk] giving up: no portrait display available")
-    return
-  }
-  // Create hidden, position, fullscreen, THEN show: mutter places fullscreen
-  // X11 windows on whatever monitor the window occupies at map time, so
-  // showing a not-yet-positioned window can land it on the primary screen.
+let collectorProcess = null
+function startManagedCollector() {
+  if (!config.claude.enabled || !config.claude.managedCollector || config.usage.claude !== 'local') return
+  const python = settings.executable('python3')
+  if (!python) return
+  if (!fs.existsSync(configPaths.collectorFile)) settings.writePrivate(configPaths.collectorFile, { database:config.claude.database, projects:config.claude.projects, sources:[{device:'local'}] })
+  const script = app.isPackaged ? path.join(process.resourcesPath, 'collectors/claude_collector.py') : path.join(__dirname, 'claude_collector.py')
+  collectorProcess = spawn(python, [script, '--config', configPaths.collectorFile, '--scan-only'], { stdio: ['ignore','ignore','pipe'] })
+  collectorProcess.stderr.on('data', () => {})
+  collectorProcess.on('error', () => { collectorProcess = null })
+  collectorProcess.on('exit', () => { collectorProcess = null; if (!quitting) setTimeout(startManagedCollector, 10000) })
+}
+async function captureScreenshot(file) {
+  if (!win || win.isDestroyed()) throw new Error('No kiosk window is open')
+  const image = await win.webContents.capturePage()
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, image.toPNG(), { mode: 0o600 })
+}
+function createWindow() {
+  if (quitting || win) return
+  const kiosk = config.window.mode === 'kiosk' && !needsSetup
+  const target = kiosk ? targetDisplay() : screen.getPrimaryDisplay()
+  if (!target) return
+  const b = target.workArea
   win = new BrowserWindow({
-    x: target.bounds.x,
-    y: target.bounds.y,
-    width: target.size.width,
-    height: target.size.height,
-    frame: false,
-    fullscreen: true,
-    alwaysOnTop: true,
-    show: false,
-    backgroundColor: "#09090b",
-    webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false },
+    ...(kiosk ? target.bounds : { width: Math.min(config.window.width, b.width), height: Math.min(config.window.height, b.height), minWidth: 360, minHeight: 480 }),
+    title: 'Clankiosk', frame: !kiosk, fullscreen: kiosk, alwaysOnTop: kiosk && config.window.alwaysOnTop,
+    show: false, backgroundColor: '#121211',
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, offscreen: headless },
   })
-  console.log("[ai-kiosk] BrowserWindow constructed")
-  win.setAlwaysOnTop(true, "floating")
-  win.once("ready-to-show", () => {
-    try {
-      const b = target.bounds
-      win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height })
-      if (!win.isFullScreen()) win.setFullScreen(true)
-      win.showInactive()
-      win.setAlwaysOnTop(true, "floating")
-      setTimeout(() => { if (win && !win.isDestroyed()) win.blur() }, 250)
-      const got = win.getBounds()
-      console.log("[ai-kiosk] window shown at (" + got.x + "," + got.y + ") " + got.width + "x" + got.height)
-      maybeAutoShot()
-      probeTickChannel()
-    } catch (e) { console.error("[ai-kiosk] show failed:", e) }
+  win.once('ready-to-show', () => {
+    if (!headless) { if (kiosk) { win.showInactive(); startCursorGuard() } else win.show() }
+    maybeAutoShot(); probeTickChannel()
   })
-  win.webContents.on("did-fail-load", (_e, code, desc, url) => {
-    console.error("[ai-kiosk] did-fail-load:", code, desc, url)
-  })
-  win.webContents.on("render-process-gone", (_e, details) => {
-    console.error("[ai-kiosk] render-process-gone:", JSON.stringify(details))
-  })
-  win.loadFile(path.join(__dirname, "..", "dist", "index.html"))
-  win.on("closed", () => { win = null })
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', event => event.preventDefault())
+  win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
+  win.on('closed', () => { stopCursorGuard(); win = null })
+}
+function openSetup() {
+  if (!win) {
+    needsSetup = true
+    state.setupRequired = true
+    createWindow()
+  } else win.webContents.send('kiosk:show-setup')
+  if (win && !headless) { win.show(); win.focus() }
 }
 
-ipcMain.handle("kiosk:get-data", () => state)
-
-app.disableHardwareAcceleration = app.disableHardwareAcceleration // reference; do not disable
-app.whenReady().then(() => {
-  console.log("[ai-kiosk] ready; creating window")
-  // Kiosk panel must never DPMS-blank (it often fails to wake on HDMI)
-  try { powerSaveBlocker.start("prevent-display-sleep") } catch (e) { console.error("[ai-kiosk] powersave blocker failed:", e) }
-  try { createWindow() } catch (e) { console.error("[ai-kiosk] createWindow failed:", e) }
-  try { startData() } catch (e) { console.error("[ai-kiosk] startData failed:", e) }
-  screen.on("display-added", debouncedPlace)
-  screen.on("display-removed", debouncedPlace)
-  screen.on("display-metrics-changed", debouncedPlace)
-  lastDisplayLayout = screen.getAllDisplays().map(d => `${d.id}:${d.bounds.x},${d.bounds.y},${d.bounds.width},${d.bounds.height}`).sort().join("|")
-  setInterval(checkDisplayLayout, 3000)
+ipcMain.handle('kiosk:get-data', () => state)
+ipcMain.handle('kiosk:get-setup', () => ({ detected: settings.detect(), error: loadedConfig.error,
+  selected: { codex: !!config.codex.enabled, claude: config.claude.enabled, t3: config.t3.enabled,
+    mode: config.window.mode, hubUrl: config.opencodex.hubUrl, hasHubToken: !!config.opencodex.adminToken } }))
+ipcMain.handle('kiosk:save-setup', (_event, selection) => {
+  const input = { ...selection }
+  if (!input.hubToken && input.hubUrl === config.opencodex.hubUrl) input.hubToken = config.opencodex.adminToken
+  settings.setupConfig(input, config)
+  app.relaunch({ args: process.argv.slice(1).filter(a => !['--setup','--kiosk','--desktop'].includes(a)) })
+  app.quit()
+  return true
 })
-app.on("window-all-closed", () => {
-  // keep running; the kiosk window should always exist. Restart after 5s.
-  setTimeout(createWindow, 5000)
+
+const screenshotFile = process.argv.find(arg => arg.startsWith('--screenshot='))?.slice(13)
+if (!app.requestSingleInstanceLock({ screenshot: screenshotFile ? path.resolve(screenshotFile) : null })) {
+  app.quit()
+} else if (screenshotFile) {
+  console.error('Start Clankiosk before requesting a screenshot.'); app.exit(1)
+} else {
+  app.on('second-instance', async (_event, _args, _cwd, extra) => {
+    if (extra?.screenshot) { try { await captureScreenshot(extra.screenshot) } catch (error) { console.error(error.message) }; return }
+    if (_args.includes('--setup')) { openSetup(); return }
+    if (!win) createWindow()
+    if (win && config.window.mode === 'desktop') { win.show(); win.focus() }
+  })
+  app.whenReady().then(() => {
+    if (headless && process.platform === 'darwin') app.dock.hide()
+    if (config.window.preventSleep && !needsSetup) powerSaveBlocker.start('prevent-display-sleep')
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+      { label: process.platform === 'darwin' ? 'File' : 'Clankiosk', submenu: [
+        { label: 'Setup…', accelerator: 'CmdOrCtrl+,', click: openSetup },
+        { label: 'Save screenshot…', accelerator: 'CmdOrCtrl+Shift+S', click: async () => {
+          const result = await dialog.showSaveDialog(win, { defaultPath: 'clankiosk.png', filters: [{ name: 'PNG', extensions: ['png'] }] })
+          if (!result.canceled && result.filePath) await captureScreenshot(result.filePath)
+        } }, { role: 'quit' }] },
+      { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
+    ]))
+    createWindow()
+    if (!needsSetup) { startManagedCollector(); startData() }
+    screen.on('display-added', debouncedPlace)
+    screen.on('display-removed', debouncedPlace)
+    screen.on('display-metrics-changed', debouncedPlace)
+    if (config.window.mode === 'kiosk') setInterval(checkDisplayLayout, 3000)
+  })
+}
+app.on('activate', () => { if (!win) createWindow() })
+app.on('before-quit', () => {
+  quitting = true; stopCursorGuard()
+  if (collectorProcess) collectorProcess.kill('SIGTERM')
+  for (const account of codexAccounts) if (account.proc) account.proc.kill('SIGTERM')
+})
+app.on('window-all-closed', () => {
+  if (quitting) return
+  if (config.window.mode === 'kiosk') setTimeout(createWindow, 1000)
+  else if (process.platform !== 'darwin') app.quit()
 })

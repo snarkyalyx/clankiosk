@@ -12,7 +12,7 @@ test('Done means an unread completion, with millisecond precision',()=>{
  assert.equal(mapRows([completed],'linux',now,{parent:'2026-09-26T11:10:00Z'})[0].status,'idle')
 })
 test('old proposed plans do not make stopped sessions request input',()=>{
- assert.equal(mapRows([{...row,title:'Agentic Harness Implementation Review',sessionStatus:'stopped',pendingPlan:1,turnState:'completed',completedAt:'2026-09-24T13:15:13.351Z'}],'mac',now,{parent:'2026-09-24T13:15:13.351Z'})[0].status,'idle')
+ assert.equal(mapRows([{...row,title:'Review fixture implementation',sessionStatus:'stopped',pendingPlan:1,turnState:'completed',completedAt:'2026-09-24T13:15:13.351Z'}],'mac',now,{parent:'2026-09-24T13:15:13.351Z'})[0].status,'idle')
 })
 test('current session state wins over stale turn state; connecting uses its own timer',()=>{
  assert.equal(mapRows([{...row,turnState:'running'}],'linux',now)[0].status,'idle')

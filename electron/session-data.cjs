@@ -6,7 +6,7 @@ const ROWS_SQL = `SELECT t.thread_id AS id, t.title, t.branch, t.updated_at AS u
  t.latest_user_message_at AS latestUserMessageAt, t.snoozed_until AS snoozedUntil,
  t.pending_approval_count AS pendingApprovals, t.pending_user_input_count AS pendingInput,
  t.has_actionable_proposed_plan AS pendingPlan, t.model_selection_json AS modelSelection,
- t.latest_turn_id AS latestTurnId, p.title AS project, s.status AS sessionStatus,
+ t.latest_turn_id AS latestTurnId, p.title AS project, s.status AS sessionStatus, s.provider_name AS providerName,
  s.active_turn_id AS activeTurnId, s.updated_at AS sessionUpdatedAt,
  t.linked_pull_request_json AS linkedPr, t.branch_pull_request_json AS branchPr,
  tr.state AS turnState, tr.requested_at AS requestedAt, tr.started_at AS runningSince, tr.completed_at AS completedAt,
@@ -57,13 +57,13 @@ function mapRows(rows, origin, now = Date.now(), visited = {}) {
   // T3 can leave completed_at populated when a turn resumes or continues.
   // The active turn's state is the live signal; a stale completion timestamp
   // must not demote that turn to idle or reset its elapsed-time display.
-  const turnInProgress = ['running','starting'].includes(r.turnState)
+  const turnInProgress = ['running','starting'].includes(r.turnState) && ['running','starting'].includes(r.sessionStatus)
   const status = r.pendingApprovals > 0 ? 'approval' : r.pendingInput > 0 ? 'input'
    : ['running','starting'].includes(r.sessionStatus) || turnInProgress ? 'working'
    : r.sessionStatus === 'error' && !errorWasRead ? 'error' : unread ? 'done' : 'idle'
   const model = parse(r.modelSelection, {})
   return { id:r.id,title:r.title,branch:r.branch || null,project:r.project,projectInitials:String(r.project || '?').slice(0,2).toUpperCase(),
-   status,lifecycle,snoozedUntil,completedAt,workingSince:status === 'working' ?
+   status,lifecycle,harness:r.providerName || null,snoozedUntil,completedAt,workingSince:status === 'working' ?
     (turnInProgress || !r.completedAt ? epoch(r.runningSince) ?? epoch(r.requestedAt) : null) ?? epoch(r.sessionUpdatedAt) : null,
    activityAt:userAt ?? epoch(r.updatedAt),origin,model:typeof model.model === 'string' ? model.model : typeof model.modelId === 'string' ? model.modelId : null,
    latestTurnId:r.latestTurnId,prs:threadPrs(r) }

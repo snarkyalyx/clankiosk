@@ -26,6 +26,8 @@ export interface ProviderCard {
 }
 
 export interface KioskData {
+  setupRequired?: boolean
+  runtime?: { mode: 'desktop' | 'kiosk'; t3Enabled: boolean }
   updatedAt: number
   providers: ProviderCard[]
   usage?: HubUsage
@@ -47,6 +49,8 @@ export interface KioskData {
       todayTokens?: number
       updatedAt?: number
     }
+    claude?: { todayTokens: number; tokensLastHour: number; updatedAt: number; partial: boolean }
+    localCodex?: { todayTokens: number; tokensLastHour: number; updatedAt: number }
   }
   opencode?: { status: "connected" | "unreachable" | "unconfigured"; detail?: string; url?: string }
   t3?: {
@@ -55,6 +59,7 @@ export interface KioskData {
     sessions: T3Session[]
     stats?: T3Stats
     updatedAt?: number
+    macT3Focused?: boolean
     sources?: { origin: string; updatedAt: number; stale: boolean }[]
   }
 }
@@ -80,6 +85,7 @@ export interface HubModelUsage {
 
 export interface HubUsage {
   updatedAt?: number
+  partial?: boolean
   pricingBasis?: "configured" | "list-price"
   costUsd: number
   cacheHitRate: number | null
@@ -136,11 +142,19 @@ export interface T3Session {
   snoozedUntil?: number | null
   completedAt?: number | null
   model?: string | null
+  harness?: string | null
   stale?: boolean
   staleAt?: number       // epoch ms of the last successful source read
   agents?: { id: string; name: string | null; model?: string | null; status: "working" | "done" | "error" | "idle" | "unknown"; updatedAt: number }[]
   workingSince: number | null  // epoch seconds — start of the running turn
   prs: T3Pr[]                  // pull requests linked to the thread, by number
   activityAt: number | null    // epoch seconds — last user message / update
-  origin?: string              // device label, e.g. "fag" (local) or "mac"
+  origin?: string              // configured device label
+}
+
+export interface SetupChoices { codex: boolean; claude: boolean; t3: boolean; mode: 'desktop' | 'kiosk'; hubUrl: string; hubToken: string }
+export interface SetupInfo {
+  detected: { platform: string; configPath: string; codex: { installed: boolean; history: boolean }; claude: { installed: boolean; history: boolean }; t3: boolean; python: string | null; sqlite: string | null }
+  selected: Omit<SetupChoices, 'hubToken'> & { hasHubToken: boolean }
+  error?: string | null
 }

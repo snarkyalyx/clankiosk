@@ -1,12 +1,14 @@
-# AI agent setup guide
+# Install Clankiosk with an AI agent
 
-Use this guide when asked to install Clankiosk on a kiosk host.
+1. Read `AGENTS.md` and `README.md`. Use macOS or Linux with Node 22.12+/24, npm, Python 3.9+ for Claude, and sqlite3 for Claude/T3. Run `npm ci`, `npm run build`, and `npm run doctor` in the checkout.
+2. Start `npm start` and complete the first-run screen with the user's requested sources. Desktop mode works on any display. Kiosk mode requires the configured dedicated display; never rearrange someone else's displays. Do not copy the maintainer's network addresses, tokens, screenshots or transcripts.
+3. For noninteractive setup, create a config with `electron/config.cjs`'s `setupConfig` function or adapt `config.example.json` at the path printed by `npm run doctor`. Pass selected booleans plus `mode`, `hubUrl`, and `hubToken`. This creates the managed Claude collector configuration as well. Keep credentials in the host config, mode `0600`.
+4. Sign-in is separate: the user should already be signed in to Codex/Claude Code. Do not extract or print their credentials. macOS Claude capacity reads the existing `Claude Code-credentials` Keychain item; grant access only through the user's normal OS prompt if required. Token tracking itself works from history without subscription credentials.
+5. Run `npm run doctor` again. Inspect a fresh screenshot and compare a known source's counters with the app. `npm run screenshot -- /absolute/path/capture.png` captures an already-running Clankiosk without a restart. Use the same config directory as the running app.
+6. Install persistence only if requested. For a Linux source checkout, adapt `systemd/clankiosk.service` to its absolute path, then enable it as a user service. For macOS, use the app's normal login-item controls or an explicitly requested LaunchAgent. Do not disable the Electron sandbox by default. If a Linux distro blocks Electron's sandbox, resolve that host policy separately; `--no-sandbox` is not the shipped launch mode.
 
-1. Read `AGENTS.md`, `DESIGN.md` and this guide. Confirm the target is Linux with a portrait display; do not rearrange displays or move other windows.
-2. Clone `https://github.com/snarkyalyx/clankiosk.git` into `~/clankiosk`. Use Node.js 22 LTS, then run `npm ci`, `npm run typecheck`, `npm test` and `npm run build`.
-3. Copy `config.example.json` to `~/.config/ai-kiosk/config.json`. Configure only the providers and T3 sources the owner requests. For a remote Mac, set its SSH host under `t3.remotes`, set `t3.readState.host` to the same host, and set `t3.sshIdentityFile` to the local private-key path. Configure the host's Git credential helper for private PR enrichment. Verify SSH access without printing credentials. Keep the config file mode `0600`; never add it to Git.
-4. Open `npm run dev` with `?preview=normal` and `?preview=busy` to check the standard and dense layout using synthetic data. Stop the preview server when done.
-5. Run `npm start` on the kiosk display and verify that the screen stays on the portrait panel, live sources report fresh data, and status colors match `DESIGN.md`.
-6. Install persistence only when the task asks for it. On a systemd user session, copy `systemd/clankiosk.service` to `~/.config/systemd/user/`, then run `systemctl --user daemon-reload` and enable/start `clankiosk.service`. Verify the service and display after launch.
+## Existing AI Kiosk installation
 
-Do not invent provider credentials, silently reuse another machine’s config, or commit machine-specific details. If a requested provider or T3 source is unavailable, finish the local setup and report exactly what still needs owner configuration.
+The portable app uses new `clankiosk` directories and does not mutate the existing `ai-kiosk` profile. Stop neither the app nor its collector just to migrate source code. Back up the existing JSON, create the new config, and explicitly transfer wanted integrations. Set `window.mode: "kiosk"`, the display selector, and sleep/topmost preferences to preserve a dedicated display. Transfer all intended T3 remotes/read-state settings and provider authority choices. If reusing the old Claude SQLite database and its service, set its absolute `claude.database`, `claude.managedCollector: false`, and the matching `expectedSources`. Start the new app only when ready to replace the old display; do not run two fullscreen kiosks on one panel.
+
+Never commit machine configs, SQLite files, screenshots of live usage, private session titles, SSH material or access tokens. Report missing tools/authentication precisely rather than fabricating capacity or usage.

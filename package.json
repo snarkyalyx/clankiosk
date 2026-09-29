@@ -1,34 +1,56 @@
 {
-  "name": "ai-kiosk",
+  "name": "clankiosk",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "electron/main.cjs",
   "scripts": {
     "build": "vite build",
-    "start": "electron .",
+    "start": "node tools/cli.cjs start",
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.cjs",
-    "check:collectors": "node tools/check-collectors.cjs"
+    "test": "node --test tests/*.test.cjs && python3 -m unittest discover -s tests -p 'test_claude_*.py'",
+    "check:collectors": "node tools/cli.cjs doctor",
+    "setup": "node tools/cli.cjs setup",
+    "doctor": "node tools/cli.cjs doctor",
+    "screenshot": "node tools/cli.cjs screenshot",
+    "package": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "check:layout": "node tools/run-layout.cjs",
+    "check:app": "node tools/check-app.cjs"
   },
   "dependencies": {
-    "@sfinterface/numbers": "^0.3.4",
-    "class-variance-authority": "latest",
-    "classic-level": "^3.0.0",
-    "clsx": "latest",
-    "lucide-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "tailwind-merge": "latest"
+    "@sfinterface/numbers": "0.3.4",
+    "class-variance-authority": "0.7.1",
+    "classic-level": "3.0.0",
+    "clsx": "2.1.1",
+    "lucide-react": "1.48.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
-    "electron": "latest",
-    "tailwindcss": "latest",
-    "typescript": "latest",
-    "vite": "latest"
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  },
+  "description": "A local AI usage and coding-session dashboard for macOS and Linux",
+  "productName": "Clankiosk",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "bin": {
+    "clankiosk": "tools/cli.cjs"
+  },
+  "author": "BuckiCo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snarkyalyx/clankiosk.git"
   }
 }

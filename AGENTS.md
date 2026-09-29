@@ -1,10 +1,11 @@
 # Agent instructions
 
-Treat `DESIGN.md` as the canonical visual standard and `AI_AGENT_SETUP.md` as the host setup guide. The renderer is a reference implementation of that standard.
+Read `DESIGN.md` for the visual standard and `AI_AGENT_SETUP.md` for installation.
 
-- Preserve the portrait, glanceable, read-only layout: roughly 40% usage and capacity above a session area occupying roughly 60%.
-- Keep the daily token counter, tall model-colored activity columns, shared Codex capacity bar, and priority-ordered T3 session groups.
-- Use the established semantic colors and familiar Git glyphs. Avoid redundant status labels, decorative chrome, touch controls, scrolling, and false Offline indicators.
-- Keep stale Working indicators the same brightness as fresh Working indicators. Preserve source freshness in the accessible label and tooltip.
-- Use synthetic fixtures in previews. Never commit live token totals, private session names, pull request data, hostnames, access tokens or SSH material.
-- For visual changes, build and inspect the 1080 × 1920 preview plus a dense-session fixture. For collector changes, preserve read-only access and run the relevant checks.
+- Support macOS and Linux. New installs start with setup and a resizable desktop window. Portrait kiosk mode retains the 40/60 usage/session split; responsive desktop layouts may stack, place panels beside each other, and scroll.
+- Preserve the daily counter, model colors, shared Codex capacity and two-line T3 rows. Keep status time alignment, harness slots and known session priorities.
+- Use synthetic previews. Never commit live data, personal hostnames, credentials, SSH keys, databases or real screenshots.
+- Keep collectors read-only. Choose one authoritative source per provider family and mark unavailable measurements honestly.
+- Keep standard desktop controls and cursor outside kiosk mode. Do not restart a running app to capture a screenshot; use the screenshot command.
+- For source changes, run the relevant tests, typecheck and build. For layout changes, inspect portrait, landscape, narrow and dense fixtures using `npm run check:layout`.
+- Avoid subagents unless the task benefits from independent work or the user explicitly requests them.

@@ -10,7 +10,7 @@ const WHEEL_W = 34     // px, glyph advance for tabular figures at 56px
 // 398 million. Capped, every wheel turns inside a few seconds of consumption
 // and then stands square in its window again.
 const ROLL_FRAC = 0.18
-const ROLL_MAX = 0.4   // million tokens: the longest a wheel may spend turning
+const ROLL_MAX = 0.4   // display units: the longest a wheel may spend turning
 // The outgoing digit keeps the window until the turn is nearly done, so the
 // figure reads as the lower digit for as long as the wheel is still moving.
 const HAND_FROM = 0.7
@@ -59,10 +59,10 @@ function paintGlyph(node: Element, digit: number, roll: number, opacity: number,
 // Hands the wheel its new position. Hand-off happens across the middle of the
 // turn: the outgoing digit is held solid while it is still the one being read,
 // then swaps over, so two digits never share the window at half strength.
-function paintWheel(el: Element, exp: number, millions: number) {
-  const step = Math.pow(10, exp)          // million tokens per full turn
+function paintWheel(el: Element, exp: number, units: number) {
+  const step = Math.pow(10, exp)
   const turn = Math.min(ROLL_FRAC * step, ROLL_MAX)
-  const pos = (millions / step) % 10
+  const pos = (units / step) % 10
   const base = Math.floor(pos)
   const frac = pos - base
   const from = 1 - turn / step
@@ -76,12 +76,13 @@ function paintWheel(el: Element, exp: number, millions: number) {
   paintGlyph(glyphs[1], d1, roll, hand, 1 - roll)
 }
 
+const scaleFor = (tokens: number) => tokens >= 1e6 ? 1e6 : tokens >= 1e3 ? 1e3 : 1
 const placesFor = (tokens: number) =>
-  Math.max(1, Math.min(6, Math.floor(Math.log10(Math.max(1, Math.max(0, tokens) / 1e6))) + 1))
+  Math.max(1, Math.min(6, Math.floor(Math.log10(Math.max(1, Math.max(0, tokens) / scaleFor(tokens)))) + 1))
 
 export type OdometerHandle = { paint: (tokens: number) => void }
 
-// The millions figure as a row of wheels, most significant first, thousands
+// The scaled figure as a row of wheels, most significant first, thousands
 // group split by a comma, and only as many wheels as the number actually has.
 // Each wheel reads the value at its own decimal place, so the column carries
 // like a geared counter instead of separate digits.
@@ -92,6 +93,7 @@ export type OdometerHandle = { paint: (tokens: number) => void }
 // dozen style properties on nodes that already exist.
 export const Odometer = forwardRef<OdometerHandle, { tokens: number }>(function Odometer({ tokens }, ref) {
   const [places, setPlaces] = useState(() => placesFor(tokens))
+  const [scale, setScale] = useState(() => scaleFor(tokens))
   const rowRef = useRef<HTMLDivElement>(null)
   const placesRef = useRef(places)
   placesRef.current = places
@@ -101,21 +103,23 @@ export const Odometer = forwardRef<OdometerHandle, { tokens: number }>(function 
       const row = rowRef.current
       if (!row) return
       const need = placesFor(t)
-      if (need !== placesRef.current) {
+      const nextScale = scaleFor(t)
+      if (need !== placesRef.current || nextScale !== scale) {
         // the figure grew (or the day rolled over): the row needs a different
         // number of wheels, so let React rebuild it and paint on the next frame
         setPlaces(need)
+        setScale(nextScale)
         return
       }
-      const millions = Math.max(0, t) / 1e6
+      const units = Math.max(0, t) / scale
       let i = 0
       for (const el of Array.from(row.children)) {
         if (!el.classList.contains("wheel")) continue
-        paintWheel(el, places - 1 - i, millions)
+        paintWheel(el, places - 1 - i, units)
         i += 1
       }
     },
-  }), [places])
+  }), [places, scale])
 
   const row: React.ReactNode[] = []
   for (let i = 0; i < places; i++) {
@@ -127,7 +131,7 @@ export const Odometer = forwardRef<OdometerHandle, { tokens: number }>(function 
   return (
     <div className="flex items-baseline" ref={rowRef}>
       {row}
-      <span className="value shrink-0 pl-[4px] text-[20px] leading-none text-muted-foreground">M</span>
+      {scale > 1 && <span className="value shrink-0 pl-[4px] text-[20px] leading-none text-muted-foreground">{scale === 1e6 ? 'M' : 'K'}</span>}
     </div>
   )
 })

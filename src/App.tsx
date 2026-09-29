@@ -3,7 +3,8 @@ import { Check, CircleCheck, CircleDashed, CircleHelp, CirclePause, CircleX, Clo
 import type { LucideIcon } from "lucide-react"
 import { TokenCounter } from "./components/TokenCounter"
 import { CompletionPixels } from "./components/CompletionPixels"
-import { DeviceLogo, ProviderLogo } from "./components/BrandLogo"
+import { Setup } from "./components/Setup"
+import { DeviceLogo, HarnessLogo, ProviderLogo } from "./components/BrandLogo"
 import { cn, fmtCountdown, fmtTokens } from "./lib/utils"
 import { dayKey, elapsed, modelColor, modelName, modelRows, orderSessions, sessionRank } from "./lib/dashboard"
 import type { KioskData, KioskTick, ProviderCard, T3Pr, T3Session, UsageBar } from "./types"
@@ -36,17 +37,18 @@ function Signal({ icon: Icon, label, tone = "quiet", children }: { icon: LucideI
 
 function Today({ data, tick, now }: { data: KioskData; tick: KioskTick | null; now: number }) {
   const today = dayKey(new Date(now)), daily = data.usage?.daily.find(d => d.date === today)
-  const tokens = tick?.tokensToday ?? data.activity.hub?.todayTokens ?? daily?.totalTokens ?? 0
+  const tokens = daily?.totalTokens ?? tick?.tokensToday ?? ((data.activity.hub?.todayTokens ?? 0) + (data.activity.claude?.todayTokens ?? 0))
   const rate = tick?.tokensPerMin ?? data.usage?.tokensPerMin ?? 0
   const models = modelRows(data, today).filter(m => m.tokens > 0), total = models.reduce((sum, m) => sum + m.tokens, 0)
   const share = (value: number) => value / total < .001 ? "<0.1%" : `${(value / total * 100).toLocaleString("en", { maximumFractionDigits: 1 })}%`
   const cache = daily?.cacheObservedInputTokens ? daily.cachedInputTokens / daily.cacheObservedInputTokens : null
   const coverage = daily?.inputTokens ? (daily.cacheObservedInputTokens ?? 0) / daily.inputTokens : null
-  const cost = daily?.costUsd, unpriced = (daily?.unpricedRequests ?? 0) + (daily?.unmeteredRequests ?? 0)
+  const unpriced = (daily?.unpricedRequests ?? 0) + (daily?.unmeteredRequests ?? 0)
+  const cost = unpriced > 0 && !daily?.pricedRequests && !daily?.costUsd ? null : daily?.costUsd
   const at = tick?.updatedAt ?? data.activity.hub?.updatedAt, stale = at != null && now - at > 120000
   const other = models.slice(6).reduce((sum, m) => sum + m.tokens, 0)
   return <section className="today-panel" aria-label="Tokens today">
-    <h2>Tokens today</h2><TokenCounter tokens={tokens} />
+    <h2>Tokens today{data.usage?.partial && <span className="warning usage-partial" title="A usage source is temporarily unavailable"> · partial</span>}</h2><TokenCounter tokens={tokens} />
     <div className={cn("rate", stale && "warning")}>{stale ? <><Clock3 />{elapsed(at! / 1000, now)} old</> : <><Zap className="rate-icon" aria-hidden="true" /><span className="digits">{fmtTokens(Math.round(rate))}</span><span>/min</span></>}</div>
     <div className="model-list">{models.slice(0, 6).map(m => <div className="model-row" key={m.model}>
       <div className="model-row-label"><span className="model-dot" style={{ background: modelColor(m.model) }} /><span className="model-name">{modelName(m.model)}</span><span className="model-tokens digits">{fmtTokens(m.tokens)}</span><span className="model-share digits">{share(m.tokens)}</span></div>
@@ -54,7 +56,7 @@ function Today({ data, tick, now }: { data: KioskData; tick: KioskTick | null; n
     </div>)}{other > 0 && <div className="model-other"><span>Other</span><span className="model-tokens digits">{fmtTokens(other)}</span><span className="model-share digits">{share(other)}</span></div>}
     {!models.length && <div className="quiet empty">{data.usage ? "No usage today" : "Usage unavailable"}</div>}</div>
     <dl className="usage-details">
-      <div><dt>{data.usage?.pricingBasis === "list-price" ? "API equivalent" : "API estimate"}{unpriced > 0 && <span className="warning"> · partial</span>}</dt><dd className="digits">{cost == null ? "—" : `≈ $${cost.toLocaleString("en-US", { maximumFractionDigits: cost < 10 ? 2 : 0 })}`}</dd></div>
+      <div><dt title={unpriced > 0 ? "Lower bound: some requests lack price data" : undefined}>{data.usage?.pricingBasis === "list-price" ? "API equivalent" : "API estimate"}</dt><dd className="digits" title={unpriced > 0 ? "Excludes requests without price data" : undefined}>{cost == null ? "—" : `${unpriced > 0 ? "" : "≈ "}$${cost.toLocaleString("en-US", { maximumFractionDigits: cost < 10 ? 2 : 0 })}${unpriced > 0 ? "+" : ""}`}</dd></div>
       <div><dt>Cache hit{cache != null && coverage != null && coverage < .995 && <span className="cache-coverage"> · {Math.round(coverage * 100)}% of input</span>}</dt><dd className="digits" aria-label={cache == null ? "Cache data unavailable" : `${Math.round(cache * 100)} percent of reported input tokens served from cache`}>{cache == null ? "—" : `${Math.round(cache * 100)}%`}</dd></div>
     </dl>
   </section>
@@ -103,7 +105,7 @@ function Quota({ entries, now }: { entries: QuotaEntry[]; now: number }) {
   const shared = entries.length > 1, states = entries.map(entry => ({ ...entry, ...quotaState(entry, now) }))
   const first = states[0]
   return <div className={cn("quota", shared && "quota-shared")}>
-    <div className="quota-label"><span>{first.bar.label.replace(/\s*\(.*\)/, "")}</span>{!shared && first.willRunOut && <span className="quota-forecast warning">empty ~{fmtCountdown(first.hours! * 3600000)}</span>}{!shared && <strong className={cn("digits", first.left === 0 && "danger")}>{first.left == null ? "—" : `${Math.round(first.left)}%`}</strong>}</div>
+    <div className="quota-label"><span>{first.bar.label.replace(/\s*\(.*\)/, "")}</span>{!shared && first.provider.id !== "anthropic" && first.willRunOut && <span className="quota-forecast warning">empty ~{fmtCountdown(first.hours! * 3600000)}</span>}{!shared && <strong className={cn("digits", first.left === 0 && "danger")}>{first.left == null ? "—" : `${Math.round(first.left)}%`}</strong>}</div>
     <div className="quota-track">
       {states.map(({ provider, bar, left, remaining, stale, ideal, overused }) => <div key={provider.id} className={cn("quota-segment", stale && "stale")} style={{ flex: shared ? Math.max(.001, provider.weight ?? 1) : 1 }} role="img" aria-label={`${shared ? accountLabel(provider) + ": " : ""}${bar.label}: ${left == null ? "unavailable" : `${Math.round(left)} percent remaining`}${ideal == null || left == null ? "" : `, ${overused ? "overused" : "on pace"}; even-use target ${Math.round(ideal)} percent remaining`}${stale ? ", stale" : ""}`}>
         {left != null && <span className="quota-fill" style={{ width: `${left}%` }} />}
@@ -121,7 +123,7 @@ function Capacity({ providers, now }: { providers: ProviderCard[]; now: number }
     const key = provider.quotaGroup || provider.id
     groups.set(key, [...groups.get(key) ?? [], provider])
   }
-  return <section className="capacity-panel" aria-label="Provider capacity"><div className="section-heading"><h2>Capacity</h2><span className="quiet">left</span></div><div className="provider-list">{[...groups].map(([id, members]) => {
+  return <section className="capacity-panel" aria-label="Provider capacity"><div className="section-heading"><h2>Capacity</h2><span className="quiet">left</span></div>{!visible.length && <p className="quiet empty">No capacity available</p>}<div className="provider-list">{[...groups].map(([id, members]) => {
     const windows = new Map<string, QuotaEntry[]>()
     for (const provider of members) for (const bar of provider.bars) {
       const key = `${bar.label.replace(/\s*\(.*\)/, "").toLowerCase()}:${bar.windowMins ?? ""}`
@@ -162,41 +164,62 @@ function SessionState({ session: s, now }: { session: T3Session; now: number }) 
 
 // Keep completion detection above the status groups: moving Working → Done
 // remounts the row. Initial data and marking an old completion unread must not flash.
-function useCompletions(sessions: T3Session[]) {
+function useCompletions(sessions: T3Session[], macT3Focused?: boolean) {
   const previous = useRef(new Map<string, T3Session>()), timers = useRef(new Set<ReturnType<typeof setTimeout>>())
-  const [highlights, setHighlights] = useState<Record<string, number>>({})
+  const [highlights, setHighlights] = useState<Record<string, { done?: number; input?: number }>>({})
   useEffect(() => {
-    const next = new Map(sessions.map(s => [`${s.origin}:${s.id}`, s])), completed: string[] = []
+    const next = new Map(sessions.map(s => [`${s.origin}:${s.id}`, s])), completed: string[] = [], needsInput: string[] = []
     for (const [id, s] of next) {
       const old = previous.current.get(id)
-      if (!old || old.stale || s.stale || !s.completedAt || s.status === "working" || s.status === "error") continue
-      if (s.completedAt > (old.completedAt ?? 0)) completed.push(id)
+      if (!old || old.stale || s.stale) continue
+      if (s.status === "input" && old.status !== "input") needsInput.push(id)
+      const chattingInMacT3 = s.origin?.toLowerCase() === "mac" && macT3Focused === true
+      if (!chattingInMacT3 && s.completedAt && s.status !== "working" && s.status !== "error" && s.completedAt > (old.completedAt ?? 0)) completed.push(id)
     }
     previous.current = next
-    if (!completed.length) return
+    if (!completed.length && !needsInput.length) return
     const at = Date.now()
-    setHighlights(current => ({ ...current, ...Object.fromEntries(completed.map(id => [id, at])) }))
-    const timer = setTimeout(() => {
-      setHighlights(current => Object.fromEntries(Object.entries(current).filter(([id, started]) => !completed.includes(id) || started !== at)))
-      timers.current.delete(timer)
-    }, 3000)
-    timers.current.add(timer)
-  }, [sessions])
+    setHighlights(current => {
+      const next = { ...current }
+      for (const id of completed) next[id] = { done: at }
+      for (const id of needsInput) next[id] = { input: at }
+      return next
+    })
+    for (const [ids, effect, duration] of [[completed, "done", 3000], [needsInput, "input", 900]] as const) {
+      if (!ids.length) continue
+      const timer = setTimeout(() => {
+        setHighlights(current => {
+          const next = { ...current }
+          for (const id of ids) {
+            const active = next[id]
+            if (!active || active[effect] !== at) continue
+            const remaining = { ...active }
+            delete remaining[effect]
+            if (remaining.done == null && remaining.input == null) delete next[id]
+            else next[id] = remaining
+          }
+          return next
+        })
+        timers.current.delete(timer)
+      }, duration)
+      timers.current.add(timer)
+    }
+  }, [sessions, macT3Focused])
   useEffect(() => () => { for (const timer of timers.current) clearTimeout(timer) }, [])
   return highlights
 }
-function SessionRow({ session: s, now, completed }: { session: T3Session; now: number; completed?: number }) {
+function SessionRow({ session: s, now, highlight }: { session: T3Session; now: number; highlight?: { done?: number; input?: number } }) {
   const prs = [...s.prs].sort((a, b) => Number(b.ci?.state === "failure" || b.mergeability === "conflicting") - Number(a.ci?.state === "failure" || a.mergeability === "conflicting"))
   const agents = s.agents ?? [], running = agents.filter(a => a.status === "working").length, errors = agents.filter(a => a.status === "error").length
-  const title = <h3 title={s.title}>{s.title}</h3>
+  const title = <div className="session-title"><HarnessLogo harness={s.harness} /><h3 title={s.title}>{s.title}</h3></div>
   const state = <div className="session-state"><SessionState session={s} now={now} /></div>
   const context = <div className="session-context"><span className="session-project">{s.project}</span>{!!agents.length && <Signal icon={Users} label={`${agents.length} subagents, ${running} working, ${errors} failed`} tone={errors ? "danger" : running ? "working" : "quiet"}><span className="digits">{agents.length}</span></Signal>}</div>
   const branch = <span className="session-branch">{s.branch && <span className="branch" title={s.branch}><GitBranch /><span>{s.branch}</span></span>}<DeviceLogo origin={s.origin} /></span>
   const artifacts = !!prs.length && <div className="session-artifacts">
     {!!prs.length && <span className="session-prs">{prs.slice(0, 5).map(pr => <PullRequest key={`${pr.host}:${pr.repository}:${pr.number}`} pr={pr} now={now} />)}{[1, 2, 3, 4, 5].map(limit => prs.length > limit && <span key={limit} className={`pr-overflow pr-overflow-${limit} quiet`} title={prs.slice(limit).map(pr => `#${pr.number}`).join(", ")}>+{prs.length - limit}</span>)}</span>}
   </div>
-  return <article className={cn("session-row", ["done", "input", "approval"].includes(s.status) && "attention-row", completed != null && "just-completed")} data-session-id={`${s.origin}:${s.id}`}>
-    {completed != null && <CompletionPixels startedAt={completed} />}
+  return <article className={cn("session-row", ["done", "input", "approval"].includes(s.status) && "attention-row", highlight?.done != null && "just-completed", highlight?.input != null && "just-needs-input")} data-session-id={`${s.origin}:${s.id}`}>
+    {highlight?.done != null && <CompletionPixels startedAt={highlight.done} />}
     <>
       <div className="session-top">{title}{state}</div>
       <div className="session-bottom"><div className="session-location">{context}<span className="session-separator" aria-hidden="true">·</span>{branch}</div>{artifacts}</div>
@@ -207,7 +230,7 @@ function SessionRow({ session: s, now, completed }: { session: T3Session; now: n
 const EMPTY_SESSIONS: T3Session[] = []
 function Sessions({ data, now }: { data: KioskData; now: number }) {
   const source = data.t3?.sessions
-  const completions = useCompletions(source ?? EMPTY_SESSIONS)
+  const completions = useCompletions(source ?? EMPTY_SESSIONS, data.t3?.macT3Focused)
   const list = orderSessions(source ?? EMPTY_SESSIONS)
   const active = list.filter(s => sessionRank(s) < 3)
   const snoozed = list.filter(s => sessionRank(s) === 3).sort((a, b) => Number(b.lifecycle === "woke") - Number(a.lifecycle === "woke") || (a.snoozedUntil ?? 0) - (b.snoozedUntil ?? 0))
@@ -243,11 +266,11 @@ function Sessions({ data, now }: { data: KioskData; now: number }) {
         // priority within Done & input; remaining rows follow activity order.
         const pinned = critical.slice(0, count)
         const rest = group.rows.filter(s => !pinned.includes(s))
-        const shown = [...pinned, ...rest.slice(0, Math.max(0, count - pinned.length))]
+        const shown = data.runtime?.mode === 'desktop' ? group.rows : [...pinned, ...rest.slice(0, Math.max(0, count - pinned.length))]
         const hidden = group.rows.length - shown.length
         return <div className="session-group" key={group.rank}>
           <div className="group-label"><span>{["Done & input", "Working", "Idle"][group.rank]}<span className="group-count digits">{group.rows.length}</span></span><span className="section-rule" aria-hidden="true" />{hidden > 0 && <span className="group-hidden digits" aria-label={`${hidden} more sessions not shown`} title={`${hidden} more sessions not shown`}>+{hidden}</span>}</div>
-          {shown.map(s => <SessionRow key={`${s.origin}:${s.id}`} session={s} now={now} completed={completions[`${s.origin}:${s.id}`]} />)}
+          {shown.map(s => <SessionRow key={`${s.origin}:${s.id}`} session={s} now={now} highlight={completions[`${s.origin}:${s.id}`]} />)}
         </div>
       })}
       {!list.length && <div className="empty quiet">{data.t3?.status === "unavailable" ? "T3 unavailable" : "No active sessions"}</div>}
@@ -262,9 +285,15 @@ function Sessions({ data, now }: { data: KioskData; now: number }) {
 }
 export default function App() {
   const { data, tick, failed } = useData(), [now, setNow] = useState(Date.now())
+  const [showSetup, setShowSetup] = useState(false)
+  useEffect(() => window.kiosk?.onSetup?.(() => setShowSetup(true)), [])
+  useEffect(() => {
+    document.documentElement.dataset.mode = showSetup || data?.setupRequired ? 'setup' : data?.runtime?.mode || 'desktop'
+  }, [data?.runtime?.mode, data?.setupRequired, showSetup])
   useEffect(() => { const interval = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(interval) }, [])
   const preview = import.meta.env.DEV && new URLSearchParams(location.search).has("preview")
+  if (showSetup || data?.setupRequired) return <Setup firstRun={!!data?.setupRequired} onCancel={() => setShowSetup(false)} />
   return <main className="kiosk"><header className="kiosk-header"><span>{new Date(now).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long" })}{preview && <span className="preview-label">Preview</span>}</span><div><time className="digits">{new Date(now).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</time></div></header>
-    {data ? <div className="kiosk-content"><div className="summary-grid"><Today data={data} tick={tick} now={now} /><Activity data={data} now={now} /><Capacity providers={data.providers} now={now} /></div><Sessions data={data} now={now} /></div> : <div className="loading-view"><div className="loading-counter" /><div className="loading-columns">{Array.from({ length: 7 }, (_, i) => <span key={i} />)}</div><p>{failed ? "Kiosk data unavailable" : "Waiting for kiosk data"}</p></div>}
+    {data ? <div className={cn("kiosk-content", data.runtime?.t3Enabled === false && "usage-only")}><div className="summary-grid"><Today data={data} tick={tick} now={now} /><Activity data={data} now={now} /><Capacity providers={data.providers} now={now} /></div>{data.runtime?.t3Enabled !== false && <Sessions data={data} now={now} />}</div> : <div className="loading-view"><div className="loading-counter" /><div className="loading-columns">{Array.from({ length: 7 }, (_, i) => <span key={i} />)}</div><p>{failed ? "Kiosk data unavailable" : "Waiting for kiosk data"}</p></div>}
   </main>
 }

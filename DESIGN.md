@@ -12,14 +12,14 @@ colors:
   warning: '#e3ba79'
   danger: '#e99591'
   merged: '#bf9ce8'
-  model-luna: '#80bdad'
-  model-sol: '#b6a1dd'
+  model-luna: '#aa91df'
+  model-sol: '#e6b15d'
   model-sol-legacy: '#8c79ad'
   model-luna-legacy: '#619789'
-  model-deepseek: '#e4b877'
+  model-deepseek: '#649be0'
   model-glm: '#de91a2'
-  model-astra: '#88b9d6'
-  model-claude: '#b9c88c'
+  model-astra: '#78bdcc'
+  model-claude: '#de9679'
   model-kimi: '#bb9981'
   working: '#70c5da'
   model-track: '#30312d'
@@ -201,3 +201,7 @@ A new completion observed after a prior snapshot activates and deactivates fixed
 ## Session freshness
 
 T3 is polled every three seconds and each completed collection is pushed immediately to the renderer. Queries can add a few seconds; this is polling, not an event stream. The subagent query starts with visible threads and uses the existing thread/activity index before parsing payloads. Concurrent collections do not overlap. Provider and forge schedules remain independent.
+
+## Portable desktop behavior
+
+Desktop windows retain their frame, pointer and normal close behavior. The first-run screen configures data sources. At wide landscape sizes, usage and sessions sit beside each other; shorter windows stack them with vertical scrolling; narrow windows use one or two columns. Portrait kiosk mode preserves the original allocation and glanceable row density. Desktop session lists can scroll through every active session. Harness icons have a shared fixed-width slot, with Claude Code in orange.

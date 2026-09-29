@@ -1,5 +1,9 @@
 node_modules/
 dist/
+release/
+artifacts/
+screenshots/
+__pycache__/
 .backups/
 *.log
 .env

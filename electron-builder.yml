@@ -1,0 +1,24 @@
+appId: company.bucki.clankiosk
+productName: Clankiosk
+directories:
+  output: release
+files:
+  - dist/**/*
+  - electron/**/*.cjs
+  - package.json
+extraResources:
+  - from: electron/claude_collector.py
+    to: collectors/claude_collector.py
+  - from: electron/cursor-guard.py
+    to: collectors/cursor-guard.py
+mac:
+  category: public.app-category.developer-tools
+  identity: null
+  target:
+    - dmg
+    - zip
+linux:
+  category: Utility
+  target:
+    - AppImage
+    - tar.gz

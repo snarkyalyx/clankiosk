@@ -1,35 +1,50 @@
 {
-  "opencodex": {
-    "hubUrl": "http://127.0.0.1:10100",
-    "adminToken": ""
+  "version": 1,
+  "window": {
+    "mode": "desktop",
+    "display": "portrait",
+    "width": 1280,
+    "height": 900,
+    "alwaysOnTop": false,
+    "preventSleep": false
+  },
+  "usage": {
+    "codex": "local",
+    "claude": "local"
+  },
+  "codex": {
+    "enabled": true,
+    "home": "~/.codex",
+    "binary": ""
   },
   "codexAccounts": [
     {
       "id": "codex-1",
       "name": "Codex",
-      "sublabel": "this machine",
-      "codexHome": null
-    },
-    {
-      "id": "codex-2",
-      "name": "Codex",
-      "sublabel": "second account",
-      "codexHome": null
+      "codexHome": "~/.codex"
     }
   ],
-  "anthropic": {
+  "claude": {
     "enabled": false,
-    "sublabel": ""
+    "managedCollector": true,
+    "quota": true,
+    "projects": "~/.claude/projects",
+    "expectedSources": [
+      "local"
+    ]
   },
-  "minors": [],
-  "manualWindows": [],
-  "opencode": {
-    "url": ""
+  "opencodex": {
+    "hubUrl": "",
+    "adminToken": ""
   },
-  "pollSeconds": 300,
   "t3": {
+    "enabled": false,
+    "database": "~/.t3/userdata/state.sqlite",
     "remotes": [],
-    "sshIdentityFile": "",
     "readState": {}
-  }
+  },
+  "forge": {
+    "enabled": false
+  },
+  "pollSeconds": 300
 }

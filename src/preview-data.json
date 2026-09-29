@@ -260,7 +260,7 @@
         "workingSince": null,
         "completedAt": 1790589360,
         "activityAt": 1790589300,
-        "origin": "fag",
+        "origin": "linux",
         "model": "gpt-6-sol",
         "prs": [
           {
@@ -340,7 +340,7 @@
         "workingSince": 1790587880,
         "completedAt": null,
         "activityAt": 1790588400,
-        "origin": "fag",
+        "origin": "linux",
         "model": "deepseek-v4.1-flash",
         "prs": [
           {
@@ -412,7 +412,7 @@
         "workingSince": null,
         "completedAt": 1790578800,
         "activityAt": 1790579000,
-        "origin": "fag",
+        "origin": "linux",
         "model": "gpt-6-sol",
         "prs": [],
         "agents": []
@@ -464,7 +464,7 @@
         "workingSince": null,
         "completedAt": 1790575200,
         "activityAt": 1790575500,
-        "origin": "fag",
+        "origin": "linux",
         "model": "gpt-6-luna",
         "prs": [],
         "agents": []
@@ -498,7 +498,7 @@
         "stale": false
       },
       {
-        "origin": "fag",
+        "origin": "linux",
         "updatedAt": 1790589600000,
         "stale": false
       }
