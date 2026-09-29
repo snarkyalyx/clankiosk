@@ -11,6 +11,7 @@ test('fresh defaults are portable, windowed, and contain no remote sources', () 
   assert.deepEqual(config.t3.remotes, [])
   assert.equal(config.opencodex.hubUrl, '')
   assert.equal(config.claude.enabled, false)
+  assert.deepEqual(config.sections, { today:true, activity:true, capacity:true, sessions:true })
   assert.equal(settings.paths({}, 'darwin', '/Users/demo').configFile, '/Users/demo/Library/Application Support/Clankiosk/config.json')
   assert.equal(settings.paths({ XDG_CONFIG_HOME: '/tmp/config' }, 'linux', '/home/demo').configFile, '/tmp/config/clankiosk/config.json')
 })
@@ -57,4 +58,12 @@ test('setup keeps advanced accounts and normalizes home-relative paths', () => {
     else process.env.CLANKIOSK_CONFIG_DIR = previous
     fs.rmSync(dir, { recursive: true })
   }
+})
+test('section visibility is independent of source tracking and never leaves a blank dashboard', () => {
+  const hidden = settings.normalize({ t3:{enabled:true}, sections:{sessions:false} })
+  assert.equal(hidden.t3.enabled, true)
+  assert.equal(hidden.sections.sessions, false)
+  assert.throws(() => settings.normalize({ sections:{ today:false,activity:false,capacity:false,sessions:false } }))
+  assert.throws(() => settings.normalize({ sections:{ today:false,activity:false,capacity:false,sessions:true } }))
+  assert.equal(settings.normalize({ t3:{enabled:true}, sections:{today:false,activity:false,capacity:false} }).sections.sessions, true)
 })

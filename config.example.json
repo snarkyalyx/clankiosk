@@ -8,6 +8,12 @@
     "alwaysOnTop": false,
     "preventSleep": false
   },
+  "sections": {
+    "today": true,
+    "activity": true,
+    "capacity": true,
+    "sessions": true
+  },
   "usage": {
     "codex": "local",
     "claude": "local"

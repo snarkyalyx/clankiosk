@@ -3,6 +3,7 @@
 Read `DESIGN.md` for the visual standard and `AI_AGENT_SETUP.md` for installation.
 
 - Support macOS and Linux. New installs start with setup and a resizable desktop window. Portrait kiosk mode retains the 40/60 usage/session split; responsive desktop layouts may stack, place panels beside each other, and scroll.
+- Keep section visibility independent from usage collection; T3 sessions can be hidden while T3 data continues to refresh.
 - Preserve the daily counter, model colors, shared Codex capacity and two-line T3 rows. Keep status time alignment, harness slots and known session priorities.
 - Use synthetic previews. Never commit live data, personal hostnames, credentials, SSH keys, databases or real screenshots.
 - Keep collectors read-only. Choose one authoritative source per provider family and mark unavailable measurements honestly.

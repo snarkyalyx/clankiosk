@@ -131,7 +131,7 @@ function Capacity({ providers, now }: { providers: ProviderCard[]; now: number }
     }
     const p = members[0], stale = members.some(p => quotaState({provider:p,bar:p.bars[0]}, now).stale)
     return <div className="provider" key={id}><div className="provider-name"><ProviderLogo id={p.quotaGroup || p.id} /><span>{p.name.replace(/ - Auth$/, "")}</span>{members.length === 1 && p.plan && <span className="quiet">{accountLabel(p)}</span>}{stale && <Signal icon={Clock3} label="Quota is stale" tone="warning" />}</div>{[...windows].map(([key, entries]) => <Quota key={key} entries={entries} now={now} />)}</div>
-  })}</div>{!visible.length && <div className="empty quiet">Capacity unavailable</div>}</section>
+  })}</div></section>
 }
 
 function PullRequest({ pr, now }: { pr: T3Pr; now: number }) {
@@ -293,7 +293,10 @@ export default function App() {
   useEffect(() => { const interval = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(interval) }, [])
   const preview = import.meta.env.DEV && new URLSearchParams(location.search).has("preview")
   if (showSetup || data?.setupRequired) return <Setup firstRun={!!data?.setupRequired} onCancel={() => setShowSetup(false)} />
+  const sections = data?.runtime?.sections ?? { today:true, activity:true, capacity:true, sessions:true }
+  const usageCount = Number(sections.today) + Number(sections.activity) + Number(sections.capacity)
+  const showSessions = sections.sessions && data?.runtime?.t3Enabled !== false
   return <main className="kiosk"><header className="kiosk-header"><span>{new Date(now).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long" })}{preview && <span className="preview-label">Preview</span>}</span><div><time className="digits">{new Date(now).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</time></div></header>
-    {data ? <div className={cn("kiosk-content", data.runtime?.t3Enabled === false && "usage-only")}><div className="summary-grid"><Today data={data} tick={tick} now={now} /><Activity data={data} now={now} /><Capacity providers={data.providers} now={now} /></div>{data.runtime?.t3Enabled !== false && <Sessions data={data} now={now} />}</div> : <div className="loading-view"><div className="loading-counter" /><div className="loading-columns">{Array.from({ length: 7 }, (_, i) => <span key={i} />)}</div><p>{failed ? "Kiosk data unavailable" : "Waiting for kiosk data"}</p></div>}
+    {data ? <div className={cn("kiosk-content", !showSessions && "usage-only", !usageCount && "sessions-only")}>{usageCount > 0 && <div className="summary-grid" data-count={usageCount}>{sections.today && <Today data={data} tick={tick} now={now} />}{sections.activity && <Activity data={data} now={now} />}{sections.capacity && <Capacity providers={data.providers} now={now} />}</div>}{showSessions && <Sessions data={data} now={now} />}</div> : <div className="loading-view"><div className="loading-counter" /><div className="loading-columns">{Array.from({ length: 7 }, (_, i) => <span key={i} />)}</div><p>{failed ? "Kiosk data unavailable" : "Waiting for kiosk data"}</p></div>}
   </main>
 }

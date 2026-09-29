@@ -27,7 +27,7 @@ export interface ProviderCard {
 
 export interface KioskData {
   setupRequired?: boolean
-  runtime?: { mode: 'desktop' | 'kiosk'; t3Enabled: boolean }
+  runtime?: { mode: 'desktop' | 'kiosk'; t3Enabled: boolean; sections?: DashboardSections }
   updatedAt: number
   providers: ProviderCard[]
   usage?: HubUsage
@@ -152,7 +152,8 @@ export interface T3Session {
   origin?: string              // configured device label
 }
 
-export interface SetupChoices { codex: boolean; claude: boolean; t3: boolean; mode: 'desktop' | 'kiosk'; hubUrl: string; hubToken: string }
+export interface DashboardSections { today: boolean; activity: boolean; capacity: boolean; sessions: boolean }
+export interface SetupChoices { codex: boolean; claude: boolean; t3: boolean; mode: 'desktop' | 'kiosk'; sections: DashboardSections; hubUrl: string; hubToken: string }
 export interface SetupInfo {
   detected: { platform: string; configPath: string; codex: { installed: boolean; history: boolean }; claude: { installed: boolean; history: boolean }; t3: boolean; python: string | null; sqlite: string | null }
   selected: Omit<SetupChoices, 'hubToken'> & { hasHubToken: boolean }

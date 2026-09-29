@@ -29,7 +29,7 @@ let needsSetup = loadedConfig.setupRequired || process.argv.includes('--setup')
 const state = {
   updatedAt: Date.now(),
   setupRequired: needsSetup,
-  runtime: { mode: config.window.mode, t3Enabled: config.t3.enabled },
+  runtime: { mode: config.window.mode, t3Enabled: config.t3.enabled, sections: config.sections },
   providers: [],
   activity: {},
   opencode: { status: "unconfigured" },
@@ -1151,7 +1151,7 @@ function openSetup() {
 ipcMain.handle('kiosk:get-data', () => state)
 ipcMain.handle('kiosk:get-setup', () => ({ detected: settings.detect(), error: loadedConfig.error,
   selected: { codex: !!config.codex.enabled, claude: config.claude.enabled, t3: config.t3.enabled,
-    mode: config.window.mode, hubUrl: config.opencodex.hubUrl, hasHubToken: !!config.opencodex.adminToken } }))
+    mode: config.window.mode, sections: config.sections, hubUrl: config.opencodex.hubUrl, hasHubToken: !!config.opencodex.adminToken } }))
 ipcMain.handle('kiosk:save-setup', (_event, selection) => {
   const input = { ...selection }
   if (!input.hubToken && input.hubUrl === config.opencodex.hubUrl) input.hubToken = config.opencodex.adminToken

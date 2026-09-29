@@ -47,6 +47,8 @@ svg { width: 16px; height: 16px; flex: none; stroke-width: 1.8; }
 .preview-label { margin-left: 14px; font-size: 11px; color: var(--warning); }
 .kiosk-content { min-height: 0; flex: 1; display: grid; grid-template-rows: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; }
 .summary-grid { --column-gap: 40px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.04fr) minmax(0, 1fr); background: var(--card); border-radius: 14px; padding: var(--card-inset); gap: var(--column-gap); min-height: 0; }
+.summary-grid[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+.summary-grid[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .summary-grid > section { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .summary-grid > section + section::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--column-gap) / -2); width: 1px; background: color-mix(in srgb, var(--muted-foreground) 14%, transparent); }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; flex: none; font-size: 12px; line-height: 18px; }
@@ -259,15 +261,18 @@ html[data-mode="kiosk"], html[data-mode="kiosk"] * { cursor: none !important; }
 
 /* Desktop windows scroll naturally when there is not enough vertical room. */
 .kiosk-content.usage-only { grid-template-rows: minmax(0, 1fr); }
-html[data-mode="desktop"] .session-list { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #46473f transparent; }
+.kiosk-content.sessions-only { grid-template-rows: minmax(0, 1fr); }
+html[data-mode="desktop"] .session-list { overflow-y: auto; scrollbar-width: none; }
 @media (min-width: 801px) and (max-height: 1200px) {
   body { overflow: auto; }
   .kiosk { height: auto; min-height: 100%; }
   .kiosk-content { display: flex; flex-direction: column; }
   .summary-grid { min-height: 560px; }
+  .kiosk-content.usage-only .summary-grid { flex: 1; }
   .capacity-panel { min-height: max-content !important; }
   .provider-list { flex: none; }
   .sessions-panel { height: 740px; flex: none; }
+  .kiosk-content.sessions-only .sessions-panel { height: auto; min-height: 560px; flex: 1; }
 }
 @media (min-width: 1500px) and (min-height: 850px) and (min-aspect-ratio: 4/3) {
   body { overflow: hidden; }
@@ -278,11 +283,14 @@ html[data-mode="desktop"] .session-list { overflow-y: auto; scrollbar-width: thi
   .model-share { display: none; }
   .model-row-label { grid-template-columns: 7px minmax(0, 1fr) auto; }
   .kiosk-content.usage-only { grid-template-columns: 1fr; }
+  .kiosk-content.sessions-only { grid-template-columns: 1fr; }
 }
 @media (max-width: 800px) {
   .summary-grid { row-gap: 36px; }
   .provider-list { gap: 24px; }
   .capacity-panel { min-height: 0; }
+  .summary-grid[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+  .summary-grid[data-count="2"] .capacity-panel { grid-column: auto; }
   .session-row h3 { font-size: 14px; }
 }
 @media (max-width: 480px) {
@@ -308,6 +316,8 @@ html[data-mode="setup"] body { overflow: auto; }
 .setup-t3 { font-size: 12px; color: #bba4d8; }
 .setup-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .setup-modes label { display: flex; gap: 10px; align-items: baseline; padding: 16px; border: 1px solid #3a3b34; border-radius: 8px; }
+.setup-sections { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 24px; }
+.setup-sections label { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; }
 .setup-hub { margin-top: 28px; font-size: 13px; }
 .setup-hub summary { cursor: pointer; }
 .setup-hub > label { display: block; margin-top: 16px; color: var(--muted-foreground); }
@@ -318,4 +328,4 @@ html[data-mode="setup"] body { overflow: auto; }
 .setup button { cursor: pointer; padding: 12px 18px; border: 1px solid #54564b; border-radius: 6px; background: transparent; color: var(--foreground); font: inherit; font-size: 13px; }
 .setup button.setup-primary { background: #bfd0b7; border-color: #bfd0b7; color: #161a14; }
 .setup button:disabled { opacity: .45; cursor: wait; }
-@media (max-width: 500px) { .setup-source { grid-template-columns: 18px 20px minmax(0, 1fr); gap: 9px; } .setup-detected { display: none; } .setup-modes { grid-template-columns: 1fr; } }
+@media (max-width: 500px) { .setup-source { grid-template-columns: 18px 20px minmax(0, 1fr); gap: 9px; } .setup-detected { display: none; } .setup-modes, .setup-sections { grid-template-columns: 1fr; } }

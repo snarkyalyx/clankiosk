@@ -18,7 +18,8 @@ fs.writeFileSync(path.join(projects, 'demo.jsonl'), JSON.stringify({type:'assist
   message:{id:'demo-message',model:'claude-example',usage:{input_tokens:10,cache_creation_input_tokens:20,cache_read_input_tokens:30,output_tokens:4}}})+'\n')
 fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify({
   window:{mode:'desktop'}, usage:{codex:'local',claude:'local'}, codex:{enabled:true,home:codexHome}, codexAccounts:[],
-  claude:{enabled:true,quota:false,projects,database:path.join(dataDir,'claude.sqlite'),expectedSources:['local']}, t3:{enabled:false},
+  claude:{enabled:true,quota:false,projects,database:path.join(dataDir,'claude.sqlite'),expectedSources:['local']},
+  t3:{enabled:true,database:path.join(dir,'missing-t3.sqlite')}, sections:{sessions:false},
 }))
 const env = {...process.env, CLANKIOSK_CONFIG_DIR:configDir, CLANKIOSK_DATA_DIR:dataDir, CLANKIOSK_HEADLESS:'1', AI_KIOSK_DUMP:path.join(dir,'state.json')}
 const packaged = process.argv[2]
@@ -40,14 +41,14 @@ async function main() {
   child.stdout.on('data',chunk=>{log+=chunk}); child.stderr.on('data',chunk=>{log+=chunk})
   child.on('error',error=>{log+=error.message})
   await until(()=>{
-    try { const state=JSON.parse(fs.readFileSync(env.AI_KIOSK_DUMP)); return state.usage?.totalTokens===174 && !state.usage.partial && state.usage.modelsDaily.length===2 } catch { return false }
+    try { const state=JSON.parse(fs.readFileSync(env.AI_KIOSK_DUMP)); return state.usage?.totalTokens===174 && !state.usage.partial && state.usage.modelsDaily.length===2 && state.runtime.t3Enabled && state.runtime.sections.sessions===false } catch { return false }
   },'merged Codex + Claude usage (174 tokens)')
   const screenshot=path.join(dir,'running.png')
   const request=spawn(binary,[...args,`--screenshot=${screenshot}`],{env,stdio:'ignore'})
   await new Promise((resolve,reject)=>{request.on('error',reject);request.on('exit',code=>code===0?resolve():reject(new Error(`Screenshot command exited ${code}`)))})
   await until(()=>fs.existsSync(screenshot) && fs.statSync(screenshot).size>1000,'screenshot from existing instance')
   process.kill(child.pid,0)
-  console.log(`App smoke passed on ${process.platform}/${process.arch}: 174 merged tokens, both local collectors, screenshot without restart.`)
+  console.log(`App smoke passed on ${process.platform}/${process.arch}: 174 merged tokens, both local collectors, hidden T3 with tracking enabled, screenshot without restart.`)
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1}).finally(()=>{
   if (child?.pid) { try { process.kill(-child.pid,'SIGTERM') } catch {} }

@@ -2,8 +2,6 @@
 
 A local dashboard for AI token consumption, provider capacity and T3 Code sessions. Runs on macOS and Linux in a resizable desktop window or on a dedicated kiosk display.
 
-![Synthetic desktop preview](docs/images/desktop-preview.png)
-
 Clankiosk keeps the large daily counter, colored model activity, capacity bars and compact session rows from the original kiosk. The first launch helps you choose the sources on your device. No hub or remote machine is required.
 
 ## Quick start
@@ -61,7 +59,9 @@ See [config.example.json](config.example.json) for advanced options. Paths begin
 
 ### Windows and displays
 
-Desktop mode has a normal frame, visible cursor, resizing, scrolling and standard close behavior. macOS keeps the app available in the Dock after closing the window. Wide landscape windows place usage beside sessions; medium and narrow windows stack the sections. Dedicated portrait kiosk mode retains the original 40/60 split and fixed session rows. Desktop lists can scroll through every session; kiosk overflow shows a count.
+Desktop mode has a normal frame, visible cursor, resizing, scrolling and standard close behavior. Drag a window edge to resize it. macOS keeps the app available in the Dock after closing the window. Wide landscape windows place usage beside sessions; medium and narrow windows stack the sections. Dedicated portrait kiosk mode retains the original 40/60 split and fixed session rows. Desktop lists can scroll through every session; kiosk overflow shows a count.
+
+In Setup, **Visible sections** independently controls Tokens today, Token activity, Capacity and T3 sessions. For example, hide T3 sessions while continuing to collect them, or disable the T3 source entirely under Local sources. The same switches live in `sections` in `config.json`. At least one section must stay visible; a sessions-only layout requires T3 collection. Source settings and visibility are separate.
 
 Kiosk mode uses `window.display`: `"portrait"`, `"primary"`, or an Electron display ID. With `"portrait"`, disconnecting the target hides the kiosk until it returns. It never falls back to an unrelated display. `window.alwaysOnTop` and `window.preventSleep` are configurable. The Linux X11 cursor guard is used only in kiosk mode.
 
@@ -89,7 +89,7 @@ npm run package   # unpacked application in release/
 npm run dist      # platform installers/archives in release/
 ```
 
-Preview variants: `normal`, `few`, `busy`, `empty`, `stale`, `setup`. Add `&mode=desktop` to exercise scrolling; default fixtures use kiosk mode. Previews contain synthetic names and usage, and are excluded from the production bundle.
+Preview variants: `normal`, `few`, `busy`, `empty`, `stale`, `setup`. Add `&mode=desktop` to exercise scrolling or `&hide=sessions` to check section visibility; default fixtures use kiosk mode. Previews contain synthetic names and usage, and are excluded from the production bundle.
 
 Electron Builder targets Linux AppImage/tar.gz and macOS DMG/zip. Build macOS artifacts on a Mac; signing and notarization need the distributor's Apple credentials and an explicit override of `mac.identity` (unsigned by default). This repository does not contain those credentials or claim signed releases. Packaged builds still need the external tools required by enabled sources. CI checks are defined for Gitea and for GitHub mirrors, including a macOS source-check job on GitHub.
 

@@ -21,6 +21,7 @@ function executable(name) {
 }
 function defaults() {
   return { version: 1, window: { mode: 'desktop', display: 'portrait', width: 1280, height: 900, alwaysOnTop: false, preventSleep: false },
+    sections: { today: true, activity: true, capacity: true, sessions: true },
     usage: { codex: 'local', claude: 'local' },
     codex: { enabled: false, home: process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), binary: '' }, codexAccounts: [],
     claude: { enabled: false, managedCollector: true, quota: true, projects: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects'), database: path.join(paths().dataDir, 'claude-usage.sqlite'), expectedSources: ['local'] },
@@ -31,8 +32,11 @@ function normalize(raw) {
   const d = defaults()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Config must be a JSON object')
   const c = { ...d, ...raw }
-  for (const key of ['window', 'usage', 'codex', 'claude', 'opencodex', 't3', 'forge']) c[key] = { ...d[key], ...raw[key] }
+  for (const key of ['window', 'sections', 'usage', 'codex', 'claude', 'opencodex', 't3', 'forge']) c[key] = { ...d[key], ...raw[key] }
   if (!['desktop', 'kiosk'].includes(c.window.mode)) throw new Error('window.mode must be desktop or kiosk')
+  for (const key of Object.keys(d.sections)) if (typeof c.sections[key] !== 'boolean') throw new Error(`sections.${key} must be true or false`)
+  if (!Object.values(c.sections).some(Boolean)) throw new Error('Show at least one dashboard section')
+  if (!c.sections.today && !c.sections.activity && !c.sections.capacity && !(c.sections.sessions && c.t3.enabled)) throw new Error('Show a usage section or enable T3 sessions')
   c.window.width = Math.max(360, Math.min(7680, Number(c.window.width) || 1280))
   c.window.height = Math.max(480, Math.min(7680, Number(c.window.height) || 900))
   for (const k of ['codex', 'claude']) if (!['local', 'hub', 'off'].includes(c.usage[k])) throw new Error(`usage.${k} must be local, hub or off`)
@@ -83,6 +87,7 @@ function setupConfig(selection, existing = defaults()) {
   const detected = detect(), c = normalize(existing)
   c.window.mode = selection.mode === 'kiosk' ? 'kiosk' : 'desktop'
   c.window.alwaysOnTop = c.window.mode === 'kiosk'; c.window.preventSleep = c.window.mode === 'kiosk'
+  if (selection.sections) c.sections = { ...c.sections, ...selection.sections }
   const useCodex = selection.codex === true, useClaude = selection.claude === true
   if (useClaude && (!detected.python || !detected.sqlite)) throw new Error('Claude tracking needs Python 3 and sqlite3. Install them, then reopen setup.')
   if (selection.t3 && !detected.sqlite) throw new Error('T3 sessions need sqlite3.')
