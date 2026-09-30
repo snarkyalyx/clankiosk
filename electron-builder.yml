@@ -14,8 +14,8 @@ extraResources:
   # The license and asset notices travel with every redistributed binary.
   - from: LICENSE
     to: LICENSE
-  - from: NOTICE
-    to: NOTICE
+  - from: THIRD-PARTY.md
+    to: THIRD-PARTY.md
 mac:
   category: public.app-category.developer-tools
   identity: null

@@ -6,6 +6,6 @@ Create focused changes that preserve provider/source boundaries. Usage counts mu
 
 A new integration should document its source format, supported platforms, credentials, polling interval, cache semantics and failure behavior. Never send chat content to an analytics service. Credentials stay in the main process, OS credential store or private local config; renderer IPC exposes only necessary settings and normalized data.
 
-Contributions are accepted under the MIT license of this repository. Keep dependency choices compatible with it and record any new bundled asset in `NOTICE` together with its license.
+Contributions are accepted under the MIT license of this repository. Keep dependencies and new bundled assets compatible with it, and record every new asset in `THIRD-PARTY.md` together with its license.
 
 Do not attach live usage screenshots or private chat titles to issues. Reproduce with `?preview=normal`, `busy`, `empty`, or `stale`. Release artifacts are intentionally unsigned and publication is separate from source checks; do not claim a platform has been tested merely because it has a build target.
