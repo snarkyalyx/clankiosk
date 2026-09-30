@@ -1,3 +1,9 @@
+> **This is a vibeslop repo for AI usage tracking.** I haven't put much effort into it and don't have the time to turn it into something professional or properly done.
+>
+> Just have your clanker figure out what to do with it and set it up for you.
+>
+> I'll probably make a nice usage dashboard with deep customization and native session support for Codex, Claude, etc. eventually.
+
 # Clankiosk
 
 A local dashboard for AI token consumption, provider capacity and T3 Code sessions. Runs on macOS and Linux in a resizable desktop window or on a dedicated kiosk display.
