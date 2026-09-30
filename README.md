@@ -42,7 +42,15 @@ Only one source is authoritative for each tracked provider family. `usage.codex`
 
 The headline and model breakdown use the same merged daily data. Local history uses this device’s calendar days. Hub daily dates use the hub’s timezone; use matching timezones when comparing daily totals. Cached input is included in token consumption; cache hit is cached reads divided by observed input. Reasoning tokens are already part of output and are not added twice. The burn rate is an average over the last hour. Hub hourly buckets may differ from its daily totals; daily totals drive the headline.
 
-Claude transcripts refresh every 30 seconds; local Codex history every 10 seconds; hub daily usage every minute; Claude capacity every two minutes. API value is an estimate, not a subscription bill. A trailing `+` means some requests lack price information; `—` means no price estimate is available. Local history alone does not supply list prices. Quota percentages always come from a quota source, never from token counts. API-key-only Claude accounts have no subscription capacity bar. The OAuth usage endpoint and local transcript formats are upstream interfaces that may change.
+Claude transcripts refresh every 30 seconds; local Codex history every 10 seconds; hub daily usage every minute; Claude capacity every two minutes. API value is an estimate, not a subscription bill. A trailing `+` means some requests lack price information; `—` means no price estimate is available. Quota percentages always come from a quota source, never from token counts. API-key-only Claude accounts have no subscription capacity bar. The OAuth usage endpoint and local transcript formats are upstream interfaces that may change.
+
+Local Codex history records tokens but no prices, so an API-equivalent value needs a `pricing.models` table in the config. Each entry names a model or pattern and its rate per million tokens:
+
+```json
+"pricing": { "models": [ { "model": "gpt-5.1-codex*", "input": 1.25, "cachedInput": 0.125, "output": 10 } ] }
+```
+
+Prices come from the provider's current list pricing; Clankiosk ships no table because published rates change. Cached reads bill at `cachedInput` (defaulting to `input`) and the uncached remainder bills at `input`, so nothing is counted twice. A day whose models are only partly covered keeps its `+` marker instead of presenting a confident total.
 
 ## Configuration
 
@@ -55,7 +63,7 @@ Config and usage data stay outside the repository:
 
 Linux respects `XDG_CONFIG_HOME` and `XDG_DATA_HOME`. `CLANKIOSK_CONFIG_DIR` and `CLANKIOSK_DATA_DIR` override these paths on either platform. Config files are written with mode `0600`. Invalid config is reported in setup and is not overwritten on read.
 
-See [config.example.json](config.example.json) for advanced options. Paths beginning with `~/` expand to the current user's home. The original `~/.config/ai-kiosk` configuration is separate: migrate deliberately using [AI_AGENT_SETUP.md](AI_AGENT_SETUP.md).
+See [config.example.json](config.example.json) for advanced options. Paths beginning with `~/` expand to the current user's home. The original `~/.config/ai-kiosk` configuration is separate: `npm run migrate -- --dry-run` lists what would carry over, `npm run migrate` writes it once you agree, and `--from <file>` reads a different profile. The old directory is never modified. [AI_AGENT_SETUP.md](AI_AGENT_SETUP.md) covers the same step for an agent.
 
 ### Windows and displays
 
@@ -69,7 +77,7 @@ Kiosk mode uses `window.display`: `"portrait"`, `"primary"`, or an Electron disp
 
 T3 support is optional. Configure `t3.database`, `t3.readState.profilePath`, and `t3.remotes` for custom paths or additional machines. Remote queries require SSH and SQLite on the remote host. The built-in remote visit-state reader uses the T3 macOS desktop profile. `t3.readState.host` selects that remote profile explicitly; otherwise local visit state is used. All databases are read-only; LevelDB visit state is copied before reading. No timestamps means the app cannot reliably distinguish an unread completion.
 
-PR links come from T3's registered associations. Set `forge.enabled` to `true` to enrich Gitea PRs through the current user's Git credential helper. GitHub PR enrichment is not implemented. Subagents come from structured T3 events; per-chat token attribution is not inferred.
+PR links come from T3's registered associations; the forge only refreshes those exact records. Set `forge.enabled` to `true` to enrich them. Gitea uses the current user's Git credential helper. GitHub uses a token from `forge.tokens.github.com`, then `GH_TOKEN`/`GITHUB_TOKEN`, then an existing `gh auth login`; GitHub Enterprise hosts also belong in `forge.githubHosts`. GitHub CI state combines check runs with legacy commit statuses, so both modern apps and older CI providers report correctly. `npm run doctor` prints which token source was found, and failures are appended to `forge.log` in the data directory. Subagents come from structured T3 events; per-chat token attribution is not inferred.
 
 ### Claude collection
 
@@ -85,12 +93,13 @@ npm run typecheck
 npm test
 npm run check:layout  # run with the preview server on port 5173
 npm run check:app    # isolated synthetic collector + screenshot smoke check
+npm run icons     # regenerate build/icon.png and build/icons from build/icon.svg
 npm run package   # unpacked application in release/
 npm run dist      # platform installers/archives in release/
 ```
 
 Preview variants: `normal`, `few`, `busy`, `empty`, `stale`, `setup`. Add `&mode=desktop` to exercise scrolling or `&hide=sessions` to check section visibility; default fixtures use kiosk mode. Previews contain synthetic names and usage, and are excluded from the production bundle.
 
-Electron Builder targets Linux AppImage/tar.gz and macOS DMG/zip. Build macOS artifacts on a Mac; signing and notarization need the distributor's Apple credentials and an explicit override of `mac.identity` (unsigned by default). This repository does not contain those credentials or claim signed releases. Packaged builds still need the external tools required by enabled sources. CI checks are defined for Gitea and for GitHub mirrors, including a macOS source-check job on GitHub.
+Electron Builder targets Linux AppImage/tar.gz and macOS DMG/zip, using the committed icon set from `build/icon.svg`. Build macOS artifacts on a Mac; signing and notarization need the distributor's Apple credentials and an explicit override of `mac.identity` (unsigned by default). This repository does not contain those credentials or claim signed releases. Pushing a `v*` tag builds both platforms on the GitHub mirror and attaches the unsigned artifacts to a release; the same command locally is `npm run dist`. Packaged builds still need the external tools required by enabled sources. CI checks are defined for Gitea and for GitHub mirrors, including a macOS source-check job on GitHub.
 
 [AI_AGENT_SETUP.md](AI_AGENT_SETUP.md) is the short installation guide for an AI agent. [DESIGN.md](DESIGN.md) records the visual standard. [CONTRIBUTING.md](CONTRIBUTING.md) covers changes and data privacy. Released under the MIT license, see [LICENSE](LICENSE).

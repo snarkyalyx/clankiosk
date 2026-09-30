@@ -43,6 +43,11 @@
     "hubUrl": "",
     "adminToken": ""
   },
+  "pricing": {
+    "models": [
+      { "model": "example-model*", "input": 1, "cachedInput": 0.1, "output": 2 }
+    ]
+  },
   "t3": {
     "enabled": false,
     "database": "~/.t3/userdata/state.sqlite",
@@ -50,7 +55,9 @@
     "readState": {}
   },
   "forge": {
-    "enabled": false
+    "enabled": false,
+    "githubHosts": [],
+    "tokens": {}
   },
   "pollSeconds": 300
 }

@@ -3,6 +3,7 @@ const fsp = require('node:fs/promises')
 const path = require('node:path')
 const readline = require('node:readline')
 const { fromGroups, localDateKey } = require('./claude-usage.cjs')
+const pricingApi = require('./pricing.cjs')
 const DAY = 86400000
 
 function usageEvent(event, state) {
@@ -32,7 +33,7 @@ async function* files(root) {
 
 class CodexUsage {
   cache = new Map()
-  async read(home, now = Date.now()) {
+  async read(home, now = Date.now(), pricing = {}) {
     const seen = new Set(), cutoff = now - 8 * DAY
     for (const root of ['sessions', 'archived_sessions']) for await (const file of files(path.join(home, root))) {
       seen.add(file)
@@ -64,7 +65,9 @@ class CodexUsage {
       if (row.at >= now - 3600000) group.lastHour += row.total
       groups.set(key, group)
     }
-    return fromGroups([...groups.values()], [], [], now, 'openai')
+    const rows = [...groups.values()]
+    pricingApi.applyPrices(rows, pricing)
+    return fromGroups(rows, [], [], now, 'openai')
   }
 }
 module.exports = { CodexUsage, usageEvent }

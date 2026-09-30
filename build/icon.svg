@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Clankiosk">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262521"/>
+      <stop offset="1" stop-color="#121211"/>
+    </linearGradient>
+    <linearGradient id="working" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fd2e6"/>
+      <stop offset="1" stop-color="#4d92a6"/>
+    </linearGradient>
+    <linearGradient id="completion" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#67f091"/>
+      <stop offset="1" stop-color="#2fa95c"/>
+    </linearGradient>
+    <linearGradient id="merged" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9a9f0"/>
+      <stop offset="1" stop-color="#8d68bd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="232" fill="url(#tile)"/>
+  <rect x="14" y="14" width="996" height="996" rx="220" fill="none" stroke="#efeee9" stroke-opacity=".07" stroke-width="8"/>
+  <g>
+    <rect x="196" y="520" width="150" height="296" rx="46" fill="url(#working)"/>
+    <rect x="437" y="360" width="150" height="456" rx="46" fill="url(#completion)"/>
+    <rect x="678" y="196" width="150" height="620" rx="46" fill="url(#merged)"/>
+    <g fill="#ffffff" fill-opacity=".22">
+      <rect x="206" y="530" width="130" height="8" rx="4"/>
+      <rect x="447" y="370" width="130" height="8" rx="4"/>
+      <rect x="688" y="206" width="130" height="8" rx="4"/>
+    </g>
+  </g>
+</svg>

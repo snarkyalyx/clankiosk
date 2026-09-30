@@ -6,6 +6,7 @@ const os = require("node:os")
 const sessionData = require("./session-data.cjs")
 const claudeUsage = require("./claude-usage.cjs")
 const claudeQuota = require("./claude-quota.cjs")
+const forgeApi = require("./forge.cjs")
 const { readVisits } = require("./t3-read-state.cjs")
 const quotaHistory = new Map()
 
@@ -33,6 +34,7 @@ const state = {
   providers: [],
   activity: {},
   opencode: { status: "unconfigured" },
+  forge: { enabled: !!config.forge.enabled, status: config.forge.enabled ? "pending" : "disabled", error: null, repos: [] },
   t3: { status: "unavailable", sessions: [] },
 }
 let hubUsage = null
@@ -48,7 +50,7 @@ function rebuildUsage() {
 async function fetchLocalCodexUsage() {
   if (config.usage.codex !== 'local' || !config.codex.enabled) return
   try {
-    localCodexUsage = await codexUsageReader.read(config.codex.home)
+    localCodexUsage = await codexUsageReader.read(config.codex.home, Date.now(), config.pricing)
     state.activity.localCodex = { todayTokens: localCodexUsage.todayTokens, tokensLastHour: localCodexUsage.tokensLastHour, updatedAt: localCodexUsage.updatedAt }
   } catch { if (localCodexUsage) localCodexUsage.partial = true }
   rebuildUsage()
@@ -374,7 +376,7 @@ async function fetchClaudeUsage() {
   if (!config.claude?.enabled || config.usage.claude !== 'local') return
   const database = config.claude.database || path.join(configPaths.dataDir, "claude-usage.sqlite")
   try {
-    localClaudeUsage = await claudeUsage.readClaudeUsage(database, config.claude.expectedSources || [])
+    localClaudeUsage = await claudeUsage.readClaudeUsage(database, config.claude.expectedSources || [], Date.now(), config.pricing)
   } catch (e) {
     console.error("[ai-kiosk] Claude usage read failed:", String(e.message || e).slice(0, 120))
     if (localClaudeUsage) localClaudeUsage = { ...localClaudeUsage, partial:true }
@@ -570,19 +572,50 @@ function readGitCredential(host) {
   })
 }
 
-async function forgeCredential(host) {
+// The gh CLI keeps its own token; reusing it means GitHub enrichment works
+// with the login the user already has, without copying secrets into config.
+function ghCliToken() {
+  return new Promise((resolve) => {
+    const gh = settings.executable("gh")
+    if (!gh) return resolve(null)
+    const child = spawn(gh, ["auth", "token"], { stdio: ["ignore", "pipe", "ignore"] })
+    let out = ""
+    const timer = setTimeout(() => child.kill("SIGKILL"), 5000)
+    child.stdout.setEncoding("utf8")
+    child.stdout.on("data", (d) => { out += d })
+    child.on("error", () => { clearTimeout(timer); resolve(null) })
+    child.on("close", () => { clearTimeout(timer); resolve(out.trim() || null) })
+  })
+}
+
+// Resolution order: explicit config token, then GH_TOKEN/GITHUB_TOKEN, then
+// the gh CLI login, then the git credential helper for that host.
+async function forgeAuth(repo) {
+  const provider = repo.provider || "gitea", host = repo.host
   const hit = forge.cred.get(host)
   if (hit && Date.now() - hit.at < 600000) return hit.value
-  const value = await readGitCredential(host)
-  forge.cred.set(host, { at: Date.now(), value })
-  return value
+  let auth = null
+  const configured = forgeApi.configuredToken(config.forge || {}, host)
+  if (configured) auth = { token: configured, source: "config" }
+  if (!auth && provider === "github") {
+    const environment = forgeApi.environmentToken()
+    if (environment) auth = { token: environment, source: "environment" }
+    if (!auth) { const cli = await ghCliToken(); if (cli) auth = { token: cli, source: "gh" } }
+  }
+  if (!auth) {
+    const credential = await readGitCredential(host)
+    if (provider === "github" && credential?.pass) auth = { token: credential.pass, source: "credential" }
+    else if (provider !== "github" && credential) auth = { user: credential.user, pass: credential.pass, source: "credential" }
+  }
+  forge.cred.set(host, { at: Date.now(), value: auth })
+  return auth
 }
 
 async function forgeGet(repo, path) {
-  const cred = await forgeCredential(repo.host)
-  if (!cred) throw new Error("no credential for " + repo.host)
-  const auth = "Basic " + Buffer.from(cred.user + ":" + cred.pass).toString("base64")
-  const r = await fetch(repo.base + path, { headers: { authorization: auth, accept: "application/json" }, signal: AbortSignal.timeout(15000) })
+  const provider = repo.provider || "gitea"
+  const headers = forgeApi.authHeaders(provider, await forgeAuth(repo))
+  if (!headers) throw new Error(`${provider === "github" ? "GitHub" : "forge"} credential unavailable for ${repo.host}`)
+  const r = await fetch(forgeApi.apiBase(repo, provider) + path, { headers, signal: AbortSignal.timeout(15000) })
   if (!r.ok) throw new Error("forge " + r.status)
   return r.json()
 }
@@ -689,7 +722,8 @@ async function forgeRepositories() {
     const key = `${host}/${m[2]}/${m[3]}`.toLowerCase()
     const existing = repos.get(key)
     if (existing) { if (!existing.projects.includes(r.project)) existing.projects.push(r.project) }
-    else repos.set(key, { base: m[1], host, owner: m[2], name: m[3], projects: [r.project] })
+    else repos.set(key, { base: m[1], host, owner: m[2], name: m[3], projects: [r.project],
+      provider: forgeApi.providerFor(host, config.forge?.githubHosts || []) })
   }
   return [...repos.values()]
 }
@@ -705,43 +739,27 @@ async function forgeRefresh() {
     }
     const byNumber = new Map(forge.byNumber), byHead = new Map(), enrichment = []
     for (const repo of forge.repos) {
-      const prefix = `${repo.host}/${repo.owner}/${repo.name}`.toLowerCase()
-      const base = `/api/v1/repos/${repo.owner}/${repo.name}`
-      const response = await forgeGet(repo, `${base}/pulls?state=all&limit=50&sort=recentupdate`)
-      const raws = Array.isArray(response) ? response : []
       const wanted = new Set()
       for (const s of state.t3?.sessions || []) {
         for (const p of s.prs || []) if ((p.host || '').toLowerCase() === repo.host.toLowerCase() && (p.repository || '').toLowerCase() === `${repo.owner}/${repo.name}`.toLowerCase()) wanted.add(p.number)
       }
-      for (const n of [...wanted].filter(n => !raws.some(p => p.number === n)).slice(0, 12)) {
-        try { const raw = await forgeGet(repo, `${base}/pulls/${n}`); if (raw?.number) raws.push(raw) } catch {}
-      }
-      for (const raw of raws) {
-        const pr = sessionData.normalizeForgePr(raw, repo), key = sessionData.prIdentity(pr)
-        const previous = byNumber.get(key)
-        if (previous?.headSha === pr.headSha) { pr.ci = previous.ci; pr.review = previous.review }
-        byNumber.set(key, pr)
-        const branch = raw.head?.ref
-        if (branch && !branch.startsWith('refs/pull/')) {
-          const key = `${prefix}:${branch}`, list = byHead.get(key) || []; list.push(pr); byHead.set(key,list)
-        }
-        const related = wanted.has(pr.number)
-        if (related) enrichment.push(async () => {
-          const results = await Promise.allSettled([
-            pr.headSha ? forgeGet(repo, `${base}/commits/${encodeURIComponent(pr.headSha)}/status?limit=100`) : Promise.reject(new Error('No head SHA')),
-            forgeGet(repo, `${base}/pulls/${pr.number}/reviews?limit=100`),
-          ])
-          if (results[0].status === 'fulfilled') pr.ci = sessionData.normalizeChecks(results[0].value)
-          else if (!pr.ci) pr.ci = sessionData.normalizeChecks(null)
-          if (results[1].status === 'fulfilled') pr.review = sessionData.normalizeReviews(results[1].value)
-          else if (!pr.review) pr.review = 'unknown'
-        })
-      }
+      const result = await forgeApi.collect(repo, { wanted, previous: forge.byNumber, get: (path) => forgeGet(repo, path) })
+      for (const [key, pr] of result.byNumber) byNumber.set(key, pr)
+      for (const [key, list] of result.byHead) byHead.set(key, [...(byHead.get(key) || []), ...list])
+      enrichment.push(...result.enrichments)
     }
     for (let i = 0; i < enrichment.length; i += 4) await Promise.all(enrichment.slice(i,i+4).map(f=>f()))
     forge.byNumber = byNumber; forge.byHead = byHead; forge.at = Date.now(); forge.error = null
-  } catch (e) { forge.error = String(e.message || e); writeForgeNote(forge.error) }
+    state.forge = { enabled: true, status: "ok", error: null, updatedAt: forge.at, repos: forgeRepositoriesForState() }
+  } catch (e) {
+    forge.error = String(e.message || e); writeForgeNote(forge.error)
+    state.forge = { ...state.forge, enabled: true, status: "error", error: forge.error, repos: forgeRepositoriesForState() }
+  }
   finally { refreshingForge = false }
+}
+
+function forgeRepositoriesForState() {
+  return forge.repos.map(r => ({ host: r.host, repository: `${r.owner}/${r.name}`, provider: r.provider || "gitea" }))
 }
 
 function writeForgeNote(m) {

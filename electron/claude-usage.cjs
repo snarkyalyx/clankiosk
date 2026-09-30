@@ -4,12 +4,13 @@ const { promisify } = require('node:util')
 const exec = promisify(execFile)
 
 const DAY = 86400000
+const pricingApi = require('./pricing.cjs')
 const localDateKey = ms => {
   const d = new Date(ms)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-async function readClaudeUsage(database, expectedSources = [], now = Date.now()) {
+async function readClaudeUsage(database, expectedSources = [], now = Date.now(), pricing = {}) {
   if (!database || !fs.existsSync(database)) return null
   const cutoff = Math.floor(now - 8 * DAY), hour = Math.floor(now - 3600000)
   const sql = `WITH grouped AS (
@@ -30,10 +31,11 @@ async function readClaudeUsage(database, expectedSources = [], now = Date.now())
   ) AS payload`
   const { stdout } = await exec(require('./config.cjs').executable('sqlite3') || 'sqlite3', ['-json', `file:${database}?mode=ro`, sql], { timeout: 5000, maxBuffer: 2 * 1024 * 1024 })
   const payload = JSON.parse(JSON.parse(stdout || '[]')[0]?.payload || '{}')
-  return fromGroups(payload.groups || [], payload.sources || [], expectedSources, now)
+  return fromGroups(payload.groups || [], payload.sources || [], expectedSources, now, 'anthropic', pricing)
 }
 
-function fromGroups(groups, sources = [], expectedSources = [], now = Date.now(), provider = 'anthropic') {
+function fromGroups(groups, sources = [], expectedSources = [], now = Date.now(), provider = 'anthropic', pricing = {}) {
+  pricingApi.applyPrices(groups, pricing)
   const days = new Map(), models = new Map(), modelDays = new Map()
   let tokensLastHour = 0
   for (const g of groups) {

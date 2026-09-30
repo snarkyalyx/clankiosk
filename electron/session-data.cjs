@@ -110,6 +110,29 @@ function normalizeChecks(body, now = Date.now()) {
  const states=[...latest.values()].map(s=>s.status || s.state), passed=states.filter(s=>s==='success').length, failed=states.filter(s=>s==='failure'||s==='error').length
  return {state:failed?'failure':body.total_count > states.length?'unknown':states.length===0?'none':passed===states.length?'success':'pending',passed,total:states.length,failed,updatedAt:now}
 }
+const CHECK_FAILURES = ['failure','timed_out','action_required','cancelled','startup_failure','stale']
+const CHECK_PASSES = ['success','neutral','skipped']
+// GitHub reports app checks through check runs and legacy CI through the
+// combined status API; the two name spaces are distinct, so both are counted.
+function normalizeCheckRuns(body, statusBody, now = Date.now()) {
+ const legacy = normalizeChecks(statusBody, now)
+ const runs = body && Array.isArray(body.check_runs) ? body.check_runs : null
+ if (!runs || !runs.length) return legacy
+ const latest = new Map()
+ for (const run of runs) {
+  const key = run.name || String(run.id), old = latest.get(key)
+  if (!old || Date.parse(run.started_at || run.created_at || 0) > Date.parse(old.started_at || old.created_at || 0)) latest.set(key, run)
+ }
+ const checks = [...latest.values()].map(run => run.status && run.status !== 'completed' ? 'pending' : String(run.conclusion || ''))
+ const legacyFailed = legacy.state === 'failure' ? legacy.failed : 0
+ const legacyPending = legacy.state === 'pending' ? Math.max(0, legacy.total - legacy.passed - legacy.failed) : 0
+ const failed = checks.filter(c => CHECK_FAILURES.includes(c)).length + legacyFailed
+ const pending = checks.filter(c => c === 'pending' || c === '').length + legacyPending
+ const passed = checks.filter(c => CHECK_PASSES.includes(c)).length + legacy.passed
+ const total = checks.length + legacy.total
+ const state = failed ? 'failure' : pending ? 'pending' : passed ? 'success' : 'none'
+ return { state, passed, total, failed, updatedAt: now }
+}
 function normalizeReviews(rows) {
  if (!Array.isArray(rows)) return 'unknown'
  const latest=new Map()
@@ -139,4 +162,4 @@ function normalizeUsageDay(day) {
   cacheObservedInputTokens:day.cacheObservedInputTokens ?? sum('cacheObservedInputTokens'),
   pricedRequests:day.pricedRequests,unpricedRequests:day.unpricedRequests,unmeteredRequests:day.unmeteredRequests }
 }
-module.exports={ROWS_SQL,STATS_SQL,AGENTS_SQL,mapRows,attachAgents,prIdentity,normalizeForgePr,normalizeChecks,normalizeReviews,recordQuota,normalizeUsageDay}
+module.exports={ROWS_SQL,STATS_SQL,AGENTS_SQL,mapRows,attachAgents,prIdentity,normalizeForgePr,normalizeChecks,normalizeCheckRuns,normalizeReviews,recordQuota,normalizeUsageDay}

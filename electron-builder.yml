@@ -14,11 +14,14 @@ extraResources:
 mac:
   category: public.app-category.developer-tools
   identity: null
+  icon: build/icon.png
   target:
     - dmg
     - zip
 linux:
   category: Utility
+  icon: build/icons
+  syncDesktopName: true
   target:
     - AppImage
     - tar.gz

@@ -5,6 +5,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "build": "vite build",
+    "icons": "electron tools/build-icons.cjs",
     "start": "node tools/cli.cjs start",
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
@@ -12,6 +13,7 @@
     "check:collectors": "node tools/cli.cjs doctor",
     "setup": "node tools/cli.cjs setup",
     "doctor": "node tools/cli.cjs doctor",
+    "migrate": "node tools/cli.cjs migrate",
     "screenshot": "node tools/cli.cjs screenshot",
     "package": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
@@ -41,6 +43,7 @@
   },
   "description": "A local AI usage and coding-session dashboard for macOS and Linux",
   "productName": "Clankiosk",
+  "desktopName": "clankiosk.desktop",
   "license": "MIT",
   "engines": {
     "node": ">=22.12.0"

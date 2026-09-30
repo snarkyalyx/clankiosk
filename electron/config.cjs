@@ -26,13 +26,14 @@ function defaults() {
     codex: { enabled: false, home: process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), binary: '' }, codexAccounts: [],
     claude: { enabled: false, managedCollector: true, quota: true, projects: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects'), database: path.join(paths().dataDir, 'claude-usage.sqlite'), expectedSources: ['local'] },
     opencodex: { hubUrl: '', adminToken: '' }, t3: { enabled: false, database: path.join(os.homedir(), '.t3/userdata/state.sqlite'), remotes: [], readState: {} },
-    forge: { enabled: false }, minors: [], manualWindows: {}, pollSeconds: 300 }
+    pricing: { models: [] },
+    forge: { enabled: false, githubHosts: [], tokens: {} }, minors: [], manualWindows: {}, pollSeconds: 300 }
 }
 function normalize(raw) {
   const d = defaults()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Config must be a JSON object')
   const c = { ...d, ...raw }
-  for (const key of ['window', 'sections', 'usage', 'codex', 'claude', 'opencodex', 't3', 'forge']) c[key] = { ...d[key], ...raw[key] }
+  for (const key of ['window', 'sections', 'usage', 'codex', 'claude', 'opencodex', 't3', 'forge', 'pricing']) c[key] = { ...d[key], ...raw[key] }
   if (!['desktop', 'kiosk'].includes(c.window.mode)) throw new Error('window.mode must be desktop or kiosk')
   for (const key of Object.keys(d.sections)) if (typeof c.sections[key] !== 'boolean') throw new Error(`sections.${key} must be true or false`)
   if (!Object.values(c.sections).some(Boolean)) throw new Error('Show at least one dashboard section')
@@ -41,6 +42,16 @@ function normalize(raw) {
   c.window.height = Math.max(480, Math.min(7680, Number(c.window.height) || 900))
   for (const k of ['codex', 'claude']) if (!['local', 'hub', 'off'].includes(c.usage[k])) throw new Error(`usage.${k} must be local, hub or off`)
   if (!Array.isArray(c.codexAccounts) || !Array.isArray(c.t3.remotes)) throw new Error('Accounts and remotes must be arrays')
+  if (!Array.isArray(c.forge.githubHosts)) throw new Error('forge.githubHosts must be a list of GitHub Enterprise hosts')
+  if (!Array.isArray(c.pricing.models)) throw new Error('pricing.models must be a list of model prices')
+  for (const row of c.pricing.models) {
+    if (!row || typeof row.model !== 'string' || !row.model.trim()) throw new Error('Each pricing entry needs a model name or pattern')
+    for (const key of ['input', 'output']) if (typeof row[key] !== 'number' || !Number.isFinite(row[key]) || row[key] < 0) throw new Error(`pricing.${row.model}.${key} must be a price per million tokens`)
+    const cached = row.cachedInput ?? row.cached
+    if (cached != null && (typeof cached !== 'number' || !Number.isFinite(cached) || cached < 0)) throw new Error(`pricing.${row.model}.cachedInput must be a price per million tokens`)
+  }
+  if (!c.forge.tokens || typeof c.forge.tokens !== 'object' || Array.isArray(c.forge.tokens)) throw new Error('forge.tokens must map a host to a token string')
+  for (const [host, token] of Object.entries(c.forge.tokens)) if (typeof token !== 'string') throw new Error(`forge.tokens.${host} must be a token string`)
   if (c.opencodex.hubUrl && !/^https?:\/\//.test(c.opencodex.hubUrl)) throw new Error('Hub URL must start with http:// or https://')
   for (const rem of c.t3.remotes) {
     if (!rem || !/^[a-zA-Z0-9_.@:-]+$/.test(rem.host || '') || rem.host.startsWith('-') || !rem.label) throw new Error('Each T3 remote needs a valid SSH host and unique label')
