@@ -100,6 +100,10 @@ npm run dist      # platform installers/archives in release/
 
 Preview variants: `normal`, `few`, `busy`, `empty`, `stale`, `setup`. Add `&mode=desktop` to exercise scrolling or `&hide=sessions` to check section visibility; default fixtures use kiosk mode. Previews contain synthetic names and usage, and are excluded from the production bundle.
 
-Electron Builder targets Linux AppImage/tar.gz and macOS DMG/zip, using the committed icon set from `build/icon.svg`. Build macOS artifacts on a Mac; signing and notarization need the distributor's Apple credentials and an explicit override of `mac.identity` (unsigned by default). This repository does not contain those credentials or claim signed releases. Pushing a `v*` tag builds both platforms on the GitHub mirror and attaches the unsigned artifacts to a release; the same command locally is `npm run dist`. Packaged builds still need the external tools required by enabled sources. CI checks are defined for Gitea and for GitHub mirrors, including a macOS source-check job on GitHub.
+Electron Builder targets Linux AppImage/tar.gz and macOS DMG/zip, using the committed icon set from `build/icon.svg`. Build macOS artifacts on a Mac. Releases are unsigned by design: builds are neither code signed nor notarized, so macOS asks for confirmation the first time the app is opened. Pushing a `v*` tag builds both platforms on the GitHub mirror and attaches the artifacts to a release; the same command locally is `npm run dist`. Packaged builds still need the external tools required by enabled sources. CI checks are defined for Gitea and for GitHub mirrors, including a macOS source-check job on GitHub.
 
-[AI_AGENT_SETUP.md](AI_AGENT_SETUP.md) is the short installation guide for an AI agent. [DESIGN.md](DESIGN.md) records the visual standard. [CONTRIBUTING.md](CONTRIBUTING.md) covers changes and data privacy. Released under the MIT license, see [LICENSE](LICENSE).
+[AI_AGENT_SETUP.md](AI_AGENT_SETUP.md) is the short installation guide for an AI agent. [DESIGN.md](DESIGN.md) records the visual standard. [CONTRIBUTING.md](CONTRIBUTING.md) covers changes and data privacy.
+
+## License
+
+MIT license, see [LICENSE](LICENSE). Copyright 2026 BuckiCo; [NOTICE](NOTICE) lists bundled assets and their own licenses.

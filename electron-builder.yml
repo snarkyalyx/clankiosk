@@ -11,6 +11,11 @@ extraResources:
     to: collectors/claude_collector.py
   - from: electron/cursor-guard.py
     to: collectors/cursor-guard.py
+  # The license and asset notices travel with every redistributed binary.
+  - from: LICENSE
+    to: LICENSE
+  - from: NOTICE
+    to: NOTICE
 mac:
   category: public.app-category.developer-tools
   identity: null

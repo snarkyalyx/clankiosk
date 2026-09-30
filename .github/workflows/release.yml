@@ -24,7 +24,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
-      # Unsigned on purpose: signing needs the distributor's Apple credentials.
+      # Unsigned by design: Clankiosk releases are not code signed.
       - run: npm run dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
