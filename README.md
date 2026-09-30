@@ -8,6 +8,8 @@
 
 A local dashboard for AI token consumption, provider capacity and T3 Code sessions. Runs on macOS and Linux in a resizable desktop window or on a dedicated kiosk display.
 
+![Synthetic desktop preview](docs/images/desktop-preview.png)
+
 Clankiosk keeps the large daily counter, colored model activity, capacity bars and compact session rows from the original kiosk. The first launch helps you choose the sources on your device. No hub or remote machine is required.
 
 ## Quick start
