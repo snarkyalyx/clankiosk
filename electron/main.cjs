@@ -671,7 +671,9 @@ async function refreshT3() {
       if (result.status !== "fulfilled") { errors.push("T3 source failed"); continue }
       const { origin, rows, stats, statsError, agents, agentNames, error } = result.value
       if (!error) {
-        const mapped = sessionData.mapRows(rows, origin, Date.now(), readState.visits)
+        const visited = { ...readState.visits }
+        for (const r of rows) if (r.lastVisitedAt) visited[r.id] = r.lastVisitedAt
+        const mapped = sessionData.mapRows(rows, origin, Date.now(), visited)
         sessionData.attachAgents(mapped, agents)
         for (const session of mapped) for (const agent of session.agents) {
           const known = agentNames.find(a => a.id === agent.id)
@@ -768,6 +770,12 @@ function writeForgeNote(m) {
 
 // Read projections and provider-assigned subagent names; missing names are optional.
 async function t3Load(origin, run, runCodex) {
+  // T3 v2 databases carry orchestration_v2_* tables; older ones fail that query and use the v1 schema.
+  const v2 = await run(sessionData.ROWS_SQL_V2)
+  if (!v2?.error) {
+    const statsRes = await run(sessionData.STATS_SQL_V2)
+    return { origin, agents: [], agentNames: [], rows: v2.rows || [], stats: (statsRes?.rows && statsRes.rows[0]) || {}, statsError: statsRes?.error }
+  }
   const [rowsRes, statsRes, agentsRes, namesRes] = await Promise.all([run(T3_ROWS_SQL), run(T3_STATS_SQL), run(sessionData.AGENTS_SQL),
     runCodex ? runCodex('SELECT id,agent_nickname AS name,model FROM threads WHERE agent_nickname IS NOT NULL') : Promise.resolve({rows:[]})])
   return {
