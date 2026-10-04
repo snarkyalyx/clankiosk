@@ -22,6 +22,38 @@ const ROWS_SQL = `SELECT t.thread_id AS id, t.title, t.branch, t.updated_at AS u
  ORDER BY COALESCE(t.latest_user_message_at,t.updated_at) DESC`
 const STATS_SQL = `SELECT SUM(CASE WHEN t.snoozed_until IS NOT NULL AND NOT ${SETTLED} THEN 1 ELSE 0 END) AS snoozed,
  SUM(CASE WHEN ${SETTLED} THEN 1 ELSE 0 END) AS settled FROM projection_threads t WHERE t.deleted_at IS NULL AND t.archived_at IS NULL`
+
+// T3 v2 keeps threads in orchestration_v2_projection_* tables with the detail in payload_json.
+// These queries return the same column names as ROWS_SQL/STATS_SQL, so mapRows serves both schemas.
+const V2_TABLE = 'orchestration_v2_projection_threads'
+const V2_SETTLED = `(json_extract(t.payload_json,'$.settledAt') IS NOT NULL AND COALESCE(json_extract(t.payload_json,'$.settledOverride'), '') <> 'unsettled')`
+const V2_LIVE = `t.deleted_at IS NULL AND t.archived_at IS NULL`
+const V2_RUNNING = `('queued','preparing','starting','running','waiting')`
+const ROWS_SQL_V2 = `SELECT t.thread_id AS id, t.title, json_extract(t.payload_json,'$.branch') AS branch, t.updated_at AS updatedAt,
+ (SELECT MAX(m.created_at) FROM orchestration_v2_projection_messages m WHERE m.thread_id=t.thread_id AND m.role='user') AS latestUserMessageAt,
+ json_extract(t.payload_json,'$.snoozedUntil') AS snoozedUntil, json_extract(t.payload_json,'$.lastVisitedAt') AS lastVisitedAt,
+ (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id=t.thread_id AND q.status='pending' AND q.kind<>'user_input') AS pendingApprovals,
+ (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id=t.thread_id AND q.status='pending' AND q.kind='user_input') AS pendingInput,
+ 0 AS pendingPlan, json_extract(t.payload_json,'$.modelSelection') AS modelSelection,
+ r.run_id AS latestTurnId, p.title AS project,
+ CASE WHEN r.status IN ${V2_RUNNING} THEN 'running' WHEN r.status='failed' THEN 'error' ELSE 'ready' END AS sessionStatus,
+ COALESCE(json_extract(t.payload_json,'$.providerInstanceId'), t.default_provider) AS providerName,
+ CASE WHEN r.status IN ${V2_RUNNING} THEN r.run_id END AS activeTurnId, COALESCE(r.completed_at, r.requested_at, t.updated_at) AS sessionUpdatedAt,
+ json_extract(t.payload_json,'$.linkedPullRequest') AS linkedPr, json_extract(t.payload_json,'$.branchPullRequest') AS branchPr,
+ CASE WHEN r.status IN ${V2_RUNNING} THEN 'running' ELSE r.status END AS turnState,
+ r.requested_at AS requestedAt, json_extract(r.payload_json,'$.startedAt') AS runningSince, r.completed_at AS completedAt,
+ (SELECT json_group_array(json_object('number',json_extract(pr.value,'$.number'),'host',json_extract(pr.value,'$.host'),
+ 'repository',json_extract(pr.value,'$.repository'),'url',json_extract(pr.value,'$.url'),
+ 'state',json_extract(pr.value,'$.snapshot.state'),'draft',json_extract(pr.value,'$.snapshot.isDraft'),
+ 'mergeability',json_extract(pr.value,'$.snapshot.mergeability'),'title',json_extract(pr.value,'$.snapshot.title'),
+ 'updatedAt',json_extract(pr.value,'$.snapshot.syncedAt')))
+ FROM json_each(t.payload_json,'$.pullRequests') pr) AS prs
+ FROM ${V2_TABLE} t LEFT JOIN projection_projects p ON p.project_id=t.project_id
+ LEFT JOIN orchestration_v2_projection_runs r ON r.run_id=(SELECT x.run_id FROM orchestration_v2_projection_runs x WHERE x.thread_id=t.thread_id ORDER BY x.ordinal DESC LIMIT 1)
+ WHERE ${V2_LIVE} AND NOT ${V2_SETTLED}
+ ORDER BY COALESCE(latestUserMessageAt,t.updated_at) DESC`
+const STATS_SQL_V2 = `SELECT SUM(CASE WHEN json_extract(t.payload_json,'$.snoozedUntil') IS NOT NULL AND NOT ${V2_SETTLED} THEN 1 ELSE 0 END) AS snoozed,
+ SUM(CASE WHEN ${V2_SETTLED} THEN 1 ELSE 0 END) AS settled FROM ${V2_TABLE} t WHERE ${V2_LIVE}`
 // Start with visible threads so SQLite uses its thread/activity index before
 // parsing JSON. Scanning all historical payloads stalls session status updates.
 const AGENTS_SQL = `SELECT a.thread_id AS threadId,a.turn_id AS turnId,a.payload_json AS payload,a.created_at AS createdAt FROM
@@ -162,4 +194,4 @@ function normalizeUsageDay(day) {
   cacheObservedInputTokens:day.cacheObservedInputTokens ?? sum('cacheObservedInputTokens'),
   pricedRequests:day.pricedRequests,unpricedRequests:day.unpricedRequests,unmeteredRequests:day.unmeteredRequests }
 }
-module.exports={ROWS_SQL,STATS_SQL,AGENTS_SQL,mapRows,attachAgents,prIdentity,normalizeForgePr,normalizeChecks,normalizeCheckRuns,normalizeReviews,recordQuota,normalizeUsageDay}
+module.exports={ROWS_SQL,STATS_SQL,AGENTS_SQL,ROWS_SQL_V2,STATS_SQL_V2,mapRows,attachAgents,prIdentity,normalizeForgePr,normalizeChecks,normalizeCheckRuns,normalizeReviews,recordQuota,normalizeUsageDay}
