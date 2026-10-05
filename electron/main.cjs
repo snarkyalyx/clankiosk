@@ -673,8 +673,9 @@ async function refreshT3() {
       if (!error) {
         const visited = { ...readState.visits }
         for (const r of rows) if (r.lastVisitedAt) visited[r.id] = r.lastVisitedAt
-        const mapped = sessionData.mapRows(rows, origin, Date.now(), visited)
-        sessionData.attachAgents(mapped, agents)
+        const all = sessionData.mapRows(rows, origin, Date.now(), visited)
+        sessionData.attachAgents(all, agents)
+        const mapped = sessionData.nestSubagents(all)
         for (const session of mapped) for (const agent of session.agents) {
           const known = agentNames.find(a => a.id === agent.id)
           if (known) { agent.name = known.name || agent.name; agent.model = known.model || agent.model }

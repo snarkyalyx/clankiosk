@@ -35,6 +35,7 @@ const ROWS_SQL_V2 = `SELECT t.thread_id AS id, t.title, json_extract(t.payload_j
  (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id=t.thread_id AND q.status='pending' AND q.kind<>'user_input') AS pendingApprovals,
  (SELECT COUNT(*) FROM orchestration_v2_projection_runtime_requests q WHERE q.thread_id=t.thread_id AND q.status='pending' AND q.kind='user_input') AS pendingInput,
  0 AS pendingPlan, json_extract(t.payload_json,'$.modelSelection') AS modelSelection,
+ json_extract(t.payload_json,'$.lineage.parentThreadId') AS parentId,
  r.run_id AS latestTurnId, p.title AS project,
  CASE WHEN r.status IN ${V2_RUNNING} THEN 'running' WHEN r.status='failed' THEN 'error' ELSE 'ready' END AS sessionStatus,
  COALESCE(json_extract(t.payload_json,'$.providerInstanceId'), t.default_provider) AS providerName,
@@ -98,8 +99,27 @@ function mapRows(rows, origin, now = Date.now(), visited = {}) {
    status,lifecycle,harness:r.providerName || null,snoozedUntil,completedAt,workingSince:status === 'working' ?
     (turnInProgress || !r.completedAt ? epoch(r.runningSince) ?? epoch(r.requestedAt) : null) ?? epoch(r.sessionUpdatedAt) : null,
    activityAt:userAt ?? epoch(r.updatedAt),origin,model:typeof model.model === 'string' ? model.model : typeof model.modelId === 'string' ? model.modelId : null,
-   latestTurnId:r.latestTurnId,prs:threadPrs(r) }
+   latestTurnId:r.latestTurnId,parentId:r.parentId || null,prs:threadPrs(r) }
  })
+}
+// T3 v2 stores subagents as threads whose lineage points at the parent; fold them under it.
+function nestSubagents(sessions) {
+ const byId = new Map(sessions.map(s => [s.id, s]))
+ const top = []
+ for (const s of sessions) {
+  const parent = s.parentId && byId.get(s.parentId)
+  if (s.parentId && !parent) continue // a subagent whose parent is settled/archived is never shown on its own
+       if (!parent || parent === s) { top.push(s); continue }
+  // A parent whose own turn is over still counts as live while a subagent is working or waiting on the user.
+  if (['working','approval','input'].includes(s.status) && ['idle','done'].includes(parent.status)) {
+   parent.status = s.status
+   parent.workingSince = s.status === 'working' ? Math.min(parent.workingSince ?? Infinity, s.workingSince ?? Infinity) : parent.workingSince
+   if (!Number.isFinite(parent.workingSince)) parent.workingSince = s.workingSince ?? null
+  }
+  parent.agents = [...(parent.agents || []), { id:s.id, name:s.title, model:s.model, updatedAt:s.activityAt || 0,
+   status: ['working','approval','input'].includes(s.status) ? 'working' : s.status === 'error' ? 'error' : s.status === 'done' ? 'done' : 'idle' }]
+ }
+ return top
 }
 function attachAgents(sessions, activities) {
  const byParent = new Map()
@@ -194,4 +214,4 @@ function normalizeUsageDay(day) {
   cacheObservedInputTokens:day.cacheObservedInputTokens ?? sum('cacheObservedInputTokens'),
   pricedRequests:day.pricedRequests,unpricedRequests:day.unpricedRequests,unmeteredRequests:day.unmeteredRequests }
 }
-module.exports={ROWS_SQL,STATS_SQL,AGENTS_SQL,ROWS_SQL_V2,STATS_SQL_V2,mapRows,attachAgents,prIdentity,normalizeForgePr,normalizeChecks,normalizeCheckRuns,normalizeReviews,recordQuota,normalizeUsageDay}
+module.exports={ROWS_SQL,STATS_SQL,AGENTS_SQL,ROWS_SQL_V2,STATS_SQL_V2,mapRows,attachAgents,nestSubagents,prIdentity,normalizeForgePr,normalizeChecks,normalizeCheckRuns,normalizeReviews,recordQuota,normalizeUsageDay}
