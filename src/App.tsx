@@ -208,21 +208,25 @@ function useCompletions(sessions: T3Session[], macT3Focused?: boolean) {
   useEffect(() => () => { for (const timer of timers.current) clearTimeout(timer) }, [])
   return highlights
 }
+const SUB_ROW = 18, SUB_MAX = 3
+const visibleAgents = (s: T3Session) => (s.agents ?? []).filter(a => a.status === "working").sort((a, b) => b.updatedAt - a.updatedAt)
 function SessionRow({ session: s, now, highlight }: { session: T3Session; now: number; highlight?: { done?: number; input?: number } }) {
   const prs = [...s.prs].sort((a, b) => Number(b.ci?.state === "failure" || b.mergeability === "conflicting") - Number(a.ci?.state === "failure" || a.mergeability === "conflicting"))
   const agents = s.agents ?? [], running = agents.filter(a => a.status === "working").length, errors = agents.filter(a => a.status === "error").length
   const title = <div className="session-title"><HarnessLogo harness={s.harness} /><h3 title={s.title}>{s.title}</h3></div>
   const state = <div className="session-state"><SessionState session={s} now={now} /></div>
-  const context = <div className="session-context"><span className="session-project">{s.project}</span>{!!agents.length && <Signal icon={Users} label={`${agents.length} subagents, ${running} working, ${errors} failed`} tone={errors ? "danger" : running ? "working" : "quiet"}><span className="digits">{agents.length}</span></Signal>}</div>
+  const context = <div className="session-context"><span className="session-project">{s.project}</span>{!!agents.length && <Signal icon={Users} label={`${agents.length} subagents, ${running} working, ${errors} failed`} tone="quiet"><span className="digits">{agents.length}</span></Signal>}</div>
   const branch = <span className="session-branch">{s.branch && <span className="branch" title={s.branch}><GitBranch /><span>{s.branch}</span></span>}<DeviceLogo origin={s.origin} /></span>
   const artifacts = !!prs.length && <div className="session-artifacts">
     {!!prs.length && <span className="session-prs">{prs.slice(0, 5).map(pr => <PullRequest key={`${pr.host}:${pr.repository}:${pr.number}`} pr={pr} now={now} />)}{[1, 2, 3, 4, 5].map(limit => prs.length > limit && <span key={limit} className={`pr-overflow pr-overflow-${limit} quiet`} title={prs.slice(limit).map(pr => `#${pr.number}`).join(", ")}>+{prs.length - limit}</span>)}</span>}
   </div>
-  return <article className={cn("session-row", ["done", "input", "approval"].includes(s.status) && "attention-row", highlight?.done != null && "just-completed", highlight?.input != null && "just-needs-input")} data-session-id={`${s.origin}:${s.id}`}>
+  const subs = visibleAgents(s), subShown = subs.slice(0, SUB_MAX), subLines = subShown.length + (subs.length > SUB_MAX ? 1 : 0)
+  return <article style={subShown.length ? { height: 62 + subLines * SUB_ROW } : undefined} className={cn("session-row", ["done", "input", "approval"].includes(s.status) && "attention-row", highlight?.done != null && "just-completed", highlight?.input != null && "just-needs-input")} data-session-id={`${s.origin}:${s.id}`}>
     {highlight?.done != null && <CompletionPixels startedAt={highlight.done} />}
     <>
       <div className="session-top">{title}{state}</div>
       <div className="session-bottom"><div className="session-location">{context}<span className="session-separator" aria-hidden="true">·</span>{branch}</div>{artifacts}</div>
+      {!!subShown.length && <div className="session-subs">{subShown.map(a => <div key={a.id} className={cn("session-sub", `sub-${a.status}`)}><span className="sub-dot" aria-hidden="true" /><span className="sub-name" title={a.name ?? undefined}>{a.name || "Subagent"}</span>{a.model && <span className="sub-model quiet">{a.model}</span>}</div>)}{subs.length > SUB_MAX && <div className="session-sub quiet">+{subs.length - SUB_MAX} more</div>}</div>}
     </>
   </article>
 }
@@ -246,7 +250,8 @@ function Sessions({ data, now }: { data: KioskData; now: number }) {
   const groups = [0, 1, 2].map(rank => ({ rank, rows: active.filter(s => sessionRank(s) === rank) })).filter(g => g.rows.length)
   const overhead = groups.length * 22 + Math.max(0, groups.length - 1) * 20
   const usable = Math.max(0, height - overhead)
-  const rowHeight = 62
+  const subRows = active.reduce((n, s) => n + (v => Math.min(SUB_MAX, v) + (v > SUB_MAX ? 1 : 0))(visibleAgents(s).length), 0)
+  const rowHeight = 62 + (active.length ? subRows * SUB_ROW / active.length : 0)
   const slots = Math.max(groups.length, Math.floor(usable / rowHeight))
   const distributable = Math.max(0, slots - groups.length)
   const remainingRows = Math.max(1, active.length - groups.length)

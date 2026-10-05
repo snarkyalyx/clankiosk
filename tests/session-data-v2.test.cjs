@@ -27,3 +27,24 @@ INSERT INTO orchestration_v2_projection_runs VALUES ('r1','a',1,'running','2026-
   const stats = JSON.parse(execFileSync('sqlite3', ['-json', db, sql + sd.STATS_SQL_V2]).toString())[0]
   assert.equal(stats.settled, 1)
 })
+
+test('nestSubagents folds child threads under their parent', () => {
+  const mk = (id, status, parentId = null) => ({ id, title: id, status, model: 'm', activityAt: 1, parentId, agents: [] })
+  const top = sd.nestSubagents([mk('p', 'working'), mk('c1', 'working', 'p'), mk('c2', 'input', 'p'), mk('c3', 'done', 'p'), mk('orphan', 'idle', 'gone')])
+  assert.deepEqual(top.map(s => s.id), ['p'])
+  assert.deepEqual(top[0].agents.map(a => a.status), ['working', 'working', 'done'])
+})
+
+test('nestSubagents marks an idle parent working while a subagent works', () => {
+  const mk = (id, status, parentId = null, workingSince = null) => ({ id, title: id, status, model: 'm', activityAt: 1, parentId, workingSince, agents: [] })
+  const [p] = sd.nestSubagents([mk('p', 'idle'), mk('c', 'working', 'p', 500)])
+  assert.equal(p.status, 'working')
+  assert.equal(p.workingSince, 500)
+  const [q] = sd.nestSubagents([mk('q', 'idle'), mk('d', 'done', 'q')])
+  assert.equal(q.status, 'idle')
+})
+
+test('subagents whose parent is not listed are dropped, not shown as sessions', () => {
+ const out = sd.nestSubagents([{ id:'a', status:'idle' }, { id:'b', status:'error', parentId:'gone' }])
+ assert.deepEqual(out.map(s => s.id), ['a'])
+})
